@@ -1,16 +1,12 @@
 {
   "name": "buildbot-data",
-  "version": "1.0.14",
-  "homepage": "https://github.com/buildbot/buildbot-data-js",
-  "authors": [
-    "Buildbot"
+  "version": "1.0.15",
+  "main": [
+    "scripts.js"
   ],
-  "description": "Buildbot data module",
-  "main": "scripts.js",
   "moduleType": [],
   "license": "MIT",
-  "dependencies": {
-    "tabex": "~1.0.3",
-    "dexie": "~1.2.0"
-  }
+  "ignore": [],
+  "description": "Buildbot middleware to access data api",
+  "dependencies": {}
 }
