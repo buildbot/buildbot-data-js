@@ -555,6 +555,143 @@
 }).call(this);
 
 (function() {
+  var DataUtils;
+
+  DataUtils = (function() {
+    function DataUtils() {
+      var dataUtilsService;
+      return new (dataUtilsService = (function() {
+        function dataUtilsService() {}
+
+        dataUtilsService.prototype.capitalize = function(string) {
+          return string[0].toUpperCase() + string.slice(1).toLowerCase();
+        };
+
+        dataUtilsService.prototype.type = function(arg) {
+          var a;
+          a = this.copyOrSplit(arg);
+          a = a.filter(function(e) {
+            return e !== '*';
+          });
+          if (a.length % 2 === 0) {
+            a.pop();
+          }
+          return a.pop();
+        };
+
+        dataUtilsService.prototype.singularType = function(arg) {
+          return this.type(arg).replace(/s$/, '');
+        };
+
+        dataUtilsService.prototype.className = function(arg) {
+          return this.capitalize(this.singularType(arg));
+        };
+
+        dataUtilsService.prototype.classId = function(arg) {
+          return this.singularType(arg) + "id";
+        };
+
+        dataUtilsService.prototype.socketPath = function(arg) {
+          var a, stars;
+          a = this.copyOrSplit(arg);
+          stars = ['*'];
+          if (a.length % 2 === 1) {
+            stars.push('*');
+          }
+          return a.concat(stars).join('/');
+        };
+
+        dataUtilsService.prototype.restPath = function(arg) {
+          var a;
+          a = this.copyOrSplit(arg);
+          a = a.filter(function(e) {
+            return e !== '*';
+          });
+          return a.join('/');
+        };
+
+        dataUtilsService.prototype.endpointPath = function(arg) {
+          var a;
+          a = this.copyOrSplit(arg);
+          a = a.filter(function(e) {
+            return e !== '*';
+          });
+          if (a.length % 2 === 0) {
+            a.pop();
+          }
+          return a.join('/');
+        };
+
+        dataUtilsService.prototype.copyOrSplit = function(arrayOrString) {
+          if (angular.isArray(arrayOrString)) {
+            return arrayOrString.slice(0);
+          } else if (angular.isString(arrayOrString)) {
+            return arrayOrString.split('/');
+          } else {
+            throw new TypeError("Parameter 'arrayOrString' must be a array or a string, not " + (typeof arrayOrString));
+          }
+        };
+
+        dataUtilsService.prototype.unWrap = function(object, path) {
+          return object[this.type(path)];
+        };
+
+        dataUtilsService.prototype.parse = function(object) {
+          var error, error1, k, v;
+          for (k in object) {
+            v = object[k];
+            try {
+              object[k] = angular.fromJson(v);
+            } catch (error1) {
+              error = error1;
+            }
+          }
+          return object;
+        };
+
+        dataUtilsService.prototype.numberOrString = function(str) {
+          var number;
+          if (str == null) {
+            str = null;
+          }
+          if (angular.isNumber(str)) {
+            return str;
+          }
+          number = parseInt(str, 10);
+          if (!isNaN(number)) {
+            return number;
+          } else {
+            return str;
+          }
+        };
+
+        dataUtilsService.prototype.emailInString = function(string) {
+          var emailRegex, error1;
+          if (!angular.isString(string)) {
+            throw new TypeError("Parameter 'string' must be a string, not " + (typeof string));
+          }
+          emailRegex = /[a-zA-Z0-9.!#$%&'*+\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*/;
+          try {
+            return emailRegex.exec(string).pop() || '';
+          } catch (error1) {
+            return '';
+          }
+        };
+
+        return dataUtilsService;
+
+      })());
+    }
+
+    return DataUtils;
+
+  })();
+
+  angular.module('bbData').service('dataUtilsService', [DataUtils]);
+
+}).call(this);
+
+(function() {
   var Data,
     bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
     slice = [].slice;
@@ -895,143 +1032,6 @@
   })();
 
   angular.module('bbData').provider('dataService', [Data]);
-
-}).call(this);
-
-(function() {
-  var DataUtils;
-
-  DataUtils = (function() {
-    function DataUtils() {
-      var dataUtilsService;
-      return new (dataUtilsService = (function() {
-        function dataUtilsService() {}
-
-        dataUtilsService.prototype.capitalize = function(string) {
-          return string[0].toUpperCase() + string.slice(1).toLowerCase();
-        };
-
-        dataUtilsService.prototype.type = function(arg) {
-          var a;
-          a = this.copyOrSplit(arg);
-          a = a.filter(function(e) {
-            return e !== '*';
-          });
-          if (a.length % 2 === 0) {
-            a.pop();
-          }
-          return a.pop();
-        };
-
-        dataUtilsService.prototype.singularType = function(arg) {
-          return this.type(arg).replace(/s$/, '');
-        };
-
-        dataUtilsService.prototype.className = function(arg) {
-          return this.capitalize(this.singularType(arg));
-        };
-
-        dataUtilsService.prototype.classId = function(arg) {
-          return this.singularType(arg) + "id";
-        };
-
-        dataUtilsService.prototype.socketPath = function(arg) {
-          var a, stars;
-          a = this.copyOrSplit(arg);
-          stars = ['*'];
-          if (a.length % 2 === 1) {
-            stars.push('*');
-          }
-          return a.concat(stars).join('/');
-        };
-
-        dataUtilsService.prototype.restPath = function(arg) {
-          var a;
-          a = this.copyOrSplit(arg);
-          a = a.filter(function(e) {
-            return e !== '*';
-          });
-          return a.join('/');
-        };
-
-        dataUtilsService.prototype.endpointPath = function(arg) {
-          var a;
-          a = this.copyOrSplit(arg);
-          a = a.filter(function(e) {
-            return e !== '*';
-          });
-          if (a.length % 2 === 0) {
-            a.pop();
-          }
-          return a.join('/');
-        };
-
-        dataUtilsService.prototype.copyOrSplit = function(arrayOrString) {
-          if (angular.isArray(arrayOrString)) {
-            return arrayOrString.slice(0);
-          } else if (angular.isString(arrayOrString)) {
-            return arrayOrString.split('/');
-          } else {
-            throw new TypeError("Parameter 'arrayOrString' must be a array or a string, not " + (typeof arrayOrString));
-          }
-        };
-
-        dataUtilsService.prototype.unWrap = function(object, path) {
-          return object[this.type(path)];
-        };
-
-        dataUtilsService.prototype.parse = function(object) {
-          var error, error1, k, v;
-          for (k in object) {
-            v = object[k];
-            try {
-              object[k] = angular.fromJson(v);
-            } catch (error1) {
-              error = error1;
-            }
-          }
-          return object;
-        };
-
-        dataUtilsService.prototype.numberOrString = function(str) {
-          var number;
-          if (str == null) {
-            str = null;
-          }
-          if (angular.isNumber(str)) {
-            return str;
-          }
-          number = parseInt(str, 10);
-          if (!isNaN(number)) {
-            return number;
-          } else {
-            return str;
-          }
-        };
-
-        dataUtilsService.prototype.emailInString = function(string) {
-          var emailRegex, error1;
-          if (!angular.isString(string)) {
-            throw new TypeError("Parameter 'string' must be a string, not " + (typeof string));
-          }
-          emailRegex = /[a-zA-Z0-9.!#$%&'*+\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*/;
-          try {
-            return emailRegex.exec(string).pop() || '';
-          } catch (error1) {
-            return '';
-          }
-        };
-
-        return dataUtilsService;
-
-      })());
-    }
-
-    return DataUtils;
-
-  })();
-
-  angular.module('bbData').service('dataUtilsService', [DataUtils]);
 
 }).call(this);
 

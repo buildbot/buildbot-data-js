@@ -43939,6 +43939,146 @@ if (window.jasmine || window.mocha) {
 }).call(this);
 
 (function() {
+  describe('Data utils service', function() {
+    var dataUtilsService, injected;
+    beforeEach(module('bbData'));
+    dataUtilsService = void 0;
+    injected = function($injector) {
+      return dataUtilsService = $injector.get('dataUtilsService');
+    };
+    beforeEach(inject(injected));
+    it('should be defined', function() {
+      return expect(dataUtilsService).toBeDefined();
+    });
+    describe('capitalize(string)', function() {
+      return it('should capitalize the parameter string', function() {
+        var result;
+        result = dataUtilsService.capitalize('test');
+        expect(result).toBe('Test');
+        result = dataUtilsService.capitalize('t');
+        return expect(result).toBe('T');
+      });
+    });
+    describe('type(arg)', function() {
+      return it('should return the type of the parameter endpoint', function() {
+        var result;
+        result = dataUtilsService.type('asd/1');
+        expect(result).toBe('asd');
+        result = dataUtilsService.type('asd/1/bnm');
+        return expect(result).toBe('bnm');
+      });
+    });
+    describe('singularType(arg)', function() {
+      return it('should return the singular the type name of the parameter endpoint', function() {
+        var result;
+        result = dataUtilsService.singularType('tests/1');
+        expect(result).toBe('test');
+        result = dataUtilsService.singularType('tests');
+        return expect(result).toBe('test');
+      });
+    });
+    describe('socketPath(arg)', function() {
+      return it('should return the WebSocket subscribe path of the parameter path', function() {
+        var result;
+        result = dataUtilsService.socketPath('asd/1/bnm');
+        expect(result).toBe('asd/1/bnm/*/*');
+        result = dataUtilsService.socketPath('asd/1');
+        return expect(result).toBe('asd/1/*');
+      });
+    });
+    describe('restPath(arg)', function() {
+      return it('should return the rest path of the parameter WebSocket subscribe path', function() {
+        var result;
+        result = dataUtilsService.restPath('asd/1/bnm/*/*');
+        expect(result).toBe('asd/1/bnm');
+        result = dataUtilsService.restPath('asd/1/*');
+        return expect(result).toBe('asd/1');
+      });
+    });
+    describe('endpointPath(arg)', function() {
+      return it('should return the endpoint path of the parameter rest or WebSocket path', function() {
+        var result;
+        result = dataUtilsService.endpointPath('asd/1/bnm/*/*');
+        expect(result).toBe('asd/1/bnm');
+        result = dataUtilsService.endpointPath('asd/1/*');
+        return expect(result).toBe('asd');
+      });
+    });
+    describe('copyOrSplit(arrayOrString)', function() {
+      it('should copy an array', function() {
+        var array, result;
+        array = [1, 2, 3];
+        result = dataUtilsService.copyOrSplit(array);
+        expect(result).not.toBe(array);
+        return expect(result).toEqual(array);
+      });
+      return it('should split a string', function() {
+        var result, string;
+        string = 'asd/123/bnm';
+        result = dataUtilsService.copyOrSplit(string);
+        return expect(result).toEqual(['asd', '123', 'bnm']);
+      });
+    });
+    describe('unWrap(data, path)', function() {
+      return it('should return the array of the type based on the path', function() {
+        var data, result;
+        data = {
+          asd: [
+            {
+              'data': 'data'
+            }
+          ],
+          meta: {}
+        };
+        result = dataUtilsService.unWrap(data, 'bnm/1/asd');
+        expect(result).toBe(data.asd);
+        result = dataUtilsService.unWrap(data, 'bnm/1/asd/2');
+        return expect(result).toBe(data.asd);
+      });
+    });
+    describe('parse(object)', function() {
+      return it('should parse fields from JSON', function() {
+        var copy, parsed, test;
+        test = {
+          a: 1,
+          b: 'asd3',
+          c: angular.toJson(['a', 1, 2]),
+          d: angular.toJson({
+            asd: [],
+            bsd: {}
+          })
+        };
+        copy = angular.copy(test);
+        copy.c = angular.toJson(copy.c);
+        copy.d = angular.toJson(copy.d);
+        parsed = dataUtilsService.parse(test);
+        return expect(parsed).toEqual(test);
+      });
+    });
+    describe('numberOrString(string)', function() {
+      it('should convert a string to a number if possible', function() {
+        var result;
+        result = dataUtilsService.numberOrString('12');
+        return expect(result).toBe(12);
+      });
+      return it('should return the string if it is not a number', function() {
+        var result;
+        result = dataUtilsService.numberOrString('w3as');
+        return expect(result).toBe('w3as');
+      });
+    });
+    return describe('emailInString(string)', function() {
+      return it('should return an email from a string', function() {
+        var email;
+        email = dataUtilsService.emailInString('foo <bar@foo.com>');
+        return expect(email).toBe('bar@foo.com');
+      });
+    });
+  });
+
+}).call(this);
+
+(function() {
   describe('Data service', function() {
     var $httpBackend, $q, $rootScope, ENDPOINTS, dataService, injected, restService, socketService;
     beforeEach(module('bbData'));
@@ -44114,146 +44254,6 @@ if (window.jasmine || window.mocha) {
         expect(opened.close).not.toHaveBeenCalled();
         scope.$destroy();
         return expect(opened.close).toHaveBeenCalled();
-      });
-    });
-  });
-
-}).call(this);
-
-(function() {
-  describe('Data utils service', function() {
-    var dataUtilsService, injected;
-    beforeEach(module('bbData'));
-    dataUtilsService = void 0;
-    injected = function($injector) {
-      return dataUtilsService = $injector.get('dataUtilsService');
-    };
-    beforeEach(inject(injected));
-    it('should be defined', function() {
-      return expect(dataUtilsService).toBeDefined();
-    });
-    describe('capitalize(string)', function() {
-      return it('should capitalize the parameter string', function() {
-        var result;
-        result = dataUtilsService.capitalize('test');
-        expect(result).toBe('Test');
-        result = dataUtilsService.capitalize('t');
-        return expect(result).toBe('T');
-      });
-    });
-    describe('type(arg)', function() {
-      return it('should return the type of the parameter endpoint', function() {
-        var result;
-        result = dataUtilsService.type('asd/1');
-        expect(result).toBe('asd');
-        result = dataUtilsService.type('asd/1/bnm');
-        return expect(result).toBe('bnm');
-      });
-    });
-    describe('singularType(arg)', function() {
-      return it('should return the singular the type name of the parameter endpoint', function() {
-        var result;
-        result = dataUtilsService.singularType('tests/1');
-        expect(result).toBe('test');
-        result = dataUtilsService.singularType('tests');
-        return expect(result).toBe('test');
-      });
-    });
-    describe('socketPath(arg)', function() {
-      return it('should return the WebSocket subscribe path of the parameter path', function() {
-        var result;
-        result = dataUtilsService.socketPath('asd/1/bnm');
-        expect(result).toBe('asd/1/bnm/*/*');
-        result = dataUtilsService.socketPath('asd/1');
-        return expect(result).toBe('asd/1/*');
-      });
-    });
-    describe('restPath(arg)', function() {
-      return it('should return the rest path of the parameter WebSocket subscribe path', function() {
-        var result;
-        result = dataUtilsService.restPath('asd/1/bnm/*/*');
-        expect(result).toBe('asd/1/bnm');
-        result = dataUtilsService.restPath('asd/1/*');
-        return expect(result).toBe('asd/1');
-      });
-    });
-    describe('endpointPath(arg)', function() {
-      return it('should return the endpoint path of the parameter rest or WebSocket path', function() {
-        var result;
-        result = dataUtilsService.endpointPath('asd/1/bnm/*/*');
-        expect(result).toBe('asd/1/bnm');
-        result = dataUtilsService.endpointPath('asd/1/*');
-        return expect(result).toBe('asd');
-      });
-    });
-    describe('copyOrSplit(arrayOrString)', function() {
-      it('should copy an array', function() {
-        var array, result;
-        array = [1, 2, 3];
-        result = dataUtilsService.copyOrSplit(array);
-        expect(result).not.toBe(array);
-        return expect(result).toEqual(array);
-      });
-      return it('should split a string', function() {
-        var result, string;
-        string = 'asd/123/bnm';
-        result = dataUtilsService.copyOrSplit(string);
-        return expect(result).toEqual(['asd', '123', 'bnm']);
-      });
-    });
-    describe('unWrap(data, path)', function() {
-      return it('should return the array of the type based on the path', function() {
-        var data, result;
-        data = {
-          asd: [
-            {
-              'data': 'data'
-            }
-          ],
-          meta: {}
-        };
-        result = dataUtilsService.unWrap(data, 'bnm/1/asd');
-        expect(result).toBe(data.asd);
-        result = dataUtilsService.unWrap(data, 'bnm/1/asd/2');
-        return expect(result).toBe(data.asd);
-      });
-    });
-    describe('parse(object)', function() {
-      return it('should parse fields from JSON', function() {
-        var copy, parsed, test;
-        test = {
-          a: 1,
-          b: 'asd3',
-          c: angular.toJson(['a', 1, 2]),
-          d: angular.toJson({
-            asd: [],
-            bsd: {}
-          })
-        };
-        copy = angular.copy(test);
-        copy.c = angular.toJson(copy.c);
-        copy.d = angular.toJson(copy.d);
-        parsed = dataUtilsService.parse(test);
-        return expect(parsed).toEqual(test);
-      });
-    });
-    describe('numberOrString(string)', function() {
-      it('should convert a string to a number if possible', function() {
-        var result;
-        result = dataUtilsService.numberOrString('12');
-        return expect(result).toBe(12);
-      });
-      return it('should return the string if it is not a number', function() {
-        var result;
-        result = dataUtilsService.numberOrString('w3as');
-        return expect(result).toBe('w3as');
-      });
-    });
-    return describe('emailInString(string)', function() {
-      return it('should return an email from a string', function() {
-        var email;
-        email = dataUtilsService.emailInString('foo <bar@foo.com>');
-        return expect(email).toBe('bar@foo.com');
       });
     });
   });
