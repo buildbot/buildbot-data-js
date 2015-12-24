@@ -76,6 +76,10 @@
           return dataService.get.apply(dataService, [this._endpoint, this._id].concat(slice.call(args)));
         };
 
+        BaseInstance.prototype.control = function(method, params) {
+          return dataService.control(this._endpoint, this._id, method, params);
+        };
+
         BaseInstance.prototype.subscribe = function() {
           var listener;
           listener = (function(_this) {
@@ -722,8 +726,13 @@
           return null;
         };
 
-        DataService.prototype.control = function(method, params) {
-          return restService.post({
+        DataService.prototype.control = function(ep, id, method, params) {
+          var restPath;
+          if (params == null) {
+            params = {};
+          }
+          restPath = dataUtilsService.restPath([ep, id]);
+          return restService.post(restPath, {
             id: this.getNextId(),
             jsonrpc: '2.0',
             method: method,
