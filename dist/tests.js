@@ -29016,6 +29016,7 @@ $provide.value("$locale", {
 })(window, document);
 
 !window.angular.$$csp().noInlineStyle && window.angular.element(document.head).prepend('<style type="text/css">@charset "UTF-8";[ng\\:cloak],[ng-cloak],[data-ng-cloak],[x-ng-cloak],.ng-cloak,.x-ng-cloak,.ng-hide:not(.ng-hide-animate){display:none !important;}ng\\:form{display:block;}.ng-animate-shim{visibility:hidden;}.ng-anchor{position:absolute;}</style>');
+
 /**
  * @license AngularJS v1.4.8
  * (c) 2010-2015 Google, Inc. http://angularjs.org
@@ -43866,73 +43867,259 @@ if (window.jasmine || window.mocha) {
       expect(base.a).toEqual(object.a);
       return expect(base.b).toEqual(object.b);
     });
-    it('should have loadXxx function for child endpoints', function() {
-      var E, base, children, e, i, len, results;
+    return it('should have loadXxx function for child endpoints', function() {
+      var base, children;
       children = ['a', 'bcd', 'ccc'];
       base = new Base({}, 'ab', children);
+      expect(angular.isFunction(base.loadA)).toBeTruthy();
+      expect(angular.isFunction(base.loadBcd)).toBeTruthy();
+      return expect(angular.isFunction(base.loadCcc)).toBeTruthy();
+    });
+  });
+
+}).call(this);
+
+(function() {
+  describe('change class', function() {
+    beforeEach(module('bbData'));
+    return it('should calculate authors emails', inject(function(Change) {
+      var changes;
+      changes = [
+        new Change({
+          author: "foo <bar@foo.com>"
+        }, "changes"), new Change({
+          author: "foo@foo.com"
+        }, "changes"), new Change({
+          author: "foo"
+        }, "changes")
+      ];
+      expect(changes[0].author_email).toBe("bar@foo.com");
+      expect(changes[1].author_email).toBe("foo@foo.com");
+      expect(changes[2].author_email).toBeUndefined();
+      expect(changes[0].author_name).toBe("foo");
+      expect(changes[1].author_name).toBe("foo");
+      return expect(changes[2].author_name).toBe("foo");
+    }));
+  });
+
+}).call(this);
+
+(function() {
+  describe('Data service', function() {
+    var $httpBackend, $q, $rootScope, $timeout, ENDPOINTS, dataService, injected, restService, socketService;
+    beforeEach(module('bbData'));
+    dataService = restService = socketService = ENDPOINTS = $rootScope = $q = $httpBackend = $timeout = null;
+    injected = function($injector) {
+      dataService = $injector.get('dataService');
+      restService = $injector.get('restService');
+      $timeout = $injector.get('$timeout');
+      socketService = $injector.get('socketService');
+      ENDPOINTS = $injector.get('ENDPOINTS');
+      $rootScope = $injector.get('$rootScope');
+      $q = $injector.get('$q');
+      return $httpBackend = $injector.get('$httpBackend');
+    };
+    beforeEach(inject(injected));
+    it('should be defined', function() {
+      return expect(dataService).toBeDefined();
+    });
+    it('should have getXxx functions for endpoints', function() {
+      var E, e, i, len, results;
       results = [];
-      for (i = 0, len = children.length; i < len; i++) {
-        e = children[i];
+      for (i = 0, len = ENDPOINTS.length; i < len; i++) {
+        e = ENDPOINTS[i];
         E = e[0].toUpperCase() + e.slice(1).toLowerCase();
-        results.push(expect(angular.isFunction(base["load" + E])).toBeTruthy());
+        expect(dataService["get" + E]).toBeDefined();
+        results.push(expect(angular.isFunction(dataService["get" + E])).toBeTruthy());
       }
       return results;
     });
-    it('should subscribe a listener to socket service events', function() {
-      var base;
-      expect(socketService.eventStream.listeners.length).toBe(0);
-      base = new Base({}, 'ab');
-      return expect(socketService.eventStream.listeners.length).toBe(1);
-    });
-    it('should remove the listener on unsubscribe', function() {
-      var base;
-      expect(socketService.eventStream.listeners.length).toBe(0);
-      base = new Base({}, 'ab');
-      expect(socketService.eventStream.listeners.length).toBe(1);
-      base.unsubscribe();
-      return expect(socketService.eventStream.listeners.length).toBe(0);
-    });
-    it('should update the instance when the event key matches', function() {
-      var base, object;
-      object = {
-        buildid: 1,
-        a: 2,
-        b: 3
-      };
-      base = new Base(object, 'builds');
-      expect(base.a).toEqual(object.a);
-      socketService.eventStream.push({
-        k: 'builds/2/update',
-        m: {
-          a: 3
-        }
+    describe('get()', function() {
+      it('should return a collection', function() {
+        var ret;
+        ret = dataService.getBuilds();
+        return expect(ret.length).toBeDefined();
       });
-      expect(base.a).toEqual(object.a);
-      socketService.eventStream.push({
-        k: 'builds/1/update',
-        m: {
-          a: 3,
-          c: 4
-        }
+      it('should call get for the rest api endpoint', function() {
+        var d;
+        d = $q.defer();
+        spyOn(restService, 'get').and.returnValue(d.promise);
+        expect(restService.get).not.toHaveBeenCalled();
+        $rootScope.$apply(function() {
+          return dataService.get('asd', {
+            subscribe: false
+          });
+        });
+        return expect(restService.get).toHaveBeenCalledWith('asd', {});
       });
-      expect(base.a).toEqual(3);
-      return expect(base.c).toEqual(4);
+      it('should send startConsuming with the socket path', function() {
+        var data, p;
+        data = dataService.open();
+        p = $q.resolve([]);
+        spyOn(socketService, 'send').and.returnValue(p);
+        spyOn(restService, 'get').and.returnValue(p);
+        expect(socketService.send).not.toHaveBeenCalled();
+        $rootScope.$apply(function() {
+          return data.getBuilds();
+        });
+        expect(socketService.send).toHaveBeenCalledWith({
+          cmd: 'startConsuming',
+          path: 'builds/*/*'
+        });
+        socketService.send.calls.reset();
+        $rootScope.$apply(function() {
+          return data.getBuilds(1);
+        });
+        expect(socketService.send).toHaveBeenCalledWith({
+          cmd: 'startConsuming',
+          path: 'builds/1/*'
+        });
+        socketService.send.calls.reset();
+        $rootScope.$apply(function() {
+          return data.getBuilds(1);
+        });
+        expect(socketService.send).not.toHaveBeenCalled();
+        $rootScope.$apply(function() {
+          return data.close();
+        });
+        expect(socketService.send).toHaveBeenCalledWith({
+          cmd: 'stopConsuming',
+          path: 'builds/*/*'
+        });
+        return expect(socketService.send).toHaveBeenCalledWith({
+          cmd: 'stopConsuming',
+          path: 'builds/1/*'
+        });
+      });
+      it('should not call startConsuming when {subscribe: false} is passed in', function() {
+        var d;
+        d = $q.defer();
+        spyOn(restService, 'get').and.returnValue(d.promise);
+        spyOn(socketService, 'send').and.returnValue(d.promise);
+        expect(socketService.send).not.toHaveBeenCalled();
+        $rootScope.$apply(function() {
+          return dataService.getBuilds({
+            subscribe: false
+          });
+        });
+        return expect(socketService.send).not.toHaveBeenCalled();
+      });
+      return it('should add the new instance on /new WebSocket message', function() {
+        var builds;
+        spyOn(restService, 'get').and.returnValue($q.resolve({
+          builds: []
+        }));
+        builds = null;
+        $rootScope.$apply(function() {
+          return builds = dataService.getBuilds({
+            subscribe: false
+          });
+        });
+        socketService.eventStream.push({
+          k: 'builds/111/new',
+          m: {
+            asd: 111
+          }
+        });
+        return expect(builds.pop().asd).toBe(111);
+      });
     });
-    return it('should remove the listeners of child endpoints on unsubscribe', function() {
-      var base, child, p, response;
-      base = new Base({}, '', ['ccc']);
-      child = new Base({}, '');
-      response = [child];
-      p = $q.resolve(response);
-      p.getArray = function() {
-        return response;
-      };
-      spyOn(dataService, 'get').and.returnValue(p);
-      base.loadCcc();
-      expect(base.ccc).toEqual(response);
-      expect(socketService.eventStream.listeners.length).toBe(2);
-      base.unsubscribe();
-      return expect(socketService.eventStream.listeners.length).toBe(0);
+    describe('control(method, params)', function() {
+      return it('should send a jsonrpc message using POST', function() {
+        var method, params;
+        spyOn(restService, 'post');
+        expect(restService.post).not.toHaveBeenCalled();
+        method = 'force';
+        params = {
+          a: 1
+        };
+        dataService.control("a", 1, method, params);
+        return expect(restService.post).toHaveBeenCalledWith("a/1", {
+          id: 1,
+          jsonrpc: '2.0',
+          method: method,
+          params: params
+        });
+      });
+    });
+    describe('open()', function() {
+      var opened;
+      opened = null;
+      beforeEach(function() {
+        return opened = dataService.open();
+      });
+      it('should return a new accessor', function() {
+        return expect(opened).toEqual(jasmine.any(Object));
+      });
+      it('should have getXxx functions for endpoints', function() {
+        var E, e, i, len, results;
+        results = [];
+        for (i = 0, len = ENDPOINTS.length; i < len; i++) {
+          e = ENDPOINTS[i];
+          E = e[0].toUpperCase() + e.slice(1).toLowerCase();
+          expect(opened["get" + E]).toBeDefined();
+          results.push(expect(angular.isFunction(opened["get" + E])).toBeTruthy());
+        }
+        return results;
+      });
+      it('should call unsubscribe on each subscribed collection on close', function() {
+        var builds, p;
+        p = $q.resolve({
+          builds: [
+            {
+              buildid: 1
+            }, {
+              buildid: 2
+            }, {
+              buildid: 3
+            }
+          ]
+        });
+        spyOn(restService, 'get').and.returnValue(p);
+        builds = null;
+        $rootScope.$apply(function() {
+          return builds = opened.getBuilds({
+            subscribe: false
+          });
+        });
+        expect(builds.length).toBe(3);
+        spyOn(builds, 'close');
+        opened.close();
+        return expect(builds.close).toHaveBeenCalled();
+      });
+      it('should call close when the $scope is destroyed', function() {
+        var scope;
+        spyOn(opened, 'close');
+        scope = $rootScope.$new();
+        opened.closeOnDestroy(scope);
+        expect(opened.close).not.toHaveBeenCalled();
+        scope.$destroy();
+        return expect(opened.close).toHaveBeenCalled();
+      });
+      return it('should work with mock calls as well', function() {
+        var builds;
+        dataService.when('builds/1', [
+          {
+            buildid: 1,
+            builderid: 1
+          }
+        ]);
+        return builds = opened.getBuilds(1, {
+          subscribe: false
+        });
+      });
+    });
+    return describe('when()', function() {
+      return it('should autopopulate ids', function(done) {
+        dataService.when('builds', [{}, {}, {}]);
+        dataService.getBuilds().onChange = function(builds) {
+          expect(builds.length).toBe(3);
+          expect(builds[1].buildid).toBe(2);
+          expect(builds[2].buildid).toBe(3);
+          return done();
+        };
+        return $timeout.flush();
+      });
     });
   });
 
@@ -43984,6 +44171,17 @@ if (window.jasmine || window.mocha) {
         expect(result).toBe('asd/1/bnm/*/*');
         result = dataUtilsService.socketPath('asd/1');
         return expect(result).toBe('asd/1/*');
+      });
+    });
+    describe('socketPathRE(arg)', function() {
+      return it('should return the WebSocket subscribe path of the parameter path', function() {
+        var result;
+        result = dataUtilsService.socketPathRE('asd/1/*');
+        expect(result.test("asd/1/new")).toBeTruthy();
+        result = dataUtilsService.socketPathRE('asd/1/bnm/*/*').source;
+        expect(result).toBe('^asd\\/1\\/bnm\\/[^/]+\\/[^/]+$');
+        result = dataUtilsService.socketPathRE('asd/1/*').source;
+        return expect(result).toBe('^asd\\/1\\/[^/]+$');
       });
     });
     describe('restPath(arg)', function() {
@@ -44071,189 +44269,9 @@ if (window.jasmine || window.mocha) {
       return it('should return an email from a string', function() {
         var email;
         email = dataUtilsService.emailInString('foo <bar@foo.com>');
+        expect(email).toBe('bar@foo.com');
+        email = dataUtilsService.emailInString('bar@foo.com');
         return expect(email).toBe('bar@foo.com');
-      });
-    });
-  });
-
-}).call(this);
-
-(function() {
-  describe('Data service', function() {
-    var $httpBackend, $q, $rootScope, ENDPOINTS, dataService, injected, restService, socketService;
-    beforeEach(module('bbData'));
-    dataService = restService = socketService = ENDPOINTS = $rootScope = $q = $httpBackend = null;
-    injected = function($injector) {
-      dataService = $injector.get('dataService');
-      restService = $injector.get('restService');
-      socketService = $injector.get('socketService');
-      ENDPOINTS = $injector.get('ENDPOINTS');
-      $rootScope = $injector.get('$rootScope');
-      $q = $injector.get('$q');
-      return $httpBackend = $injector.get('$httpBackend');
-    };
-    beforeEach(inject(injected));
-    it('should be defined', function() {
-      return expect(dataService).toBeDefined();
-    });
-    it('should have getXxx functions for endpoints', function() {
-      var E, e, i, len, results;
-      results = [];
-      for (i = 0, len = ENDPOINTS.length; i < len; i++) {
-        e = ENDPOINTS[i];
-        E = e[0].toUpperCase() + e.slice(1).toLowerCase();
-        expect(dataService["get" + E]).toBeDefined();
-        results.push(expect(angular.isFunction(dataService["get" + E])).toBeTruthy());
-      }
-      return results;
-    });
-    describe('get()', function() {
-      it('should return a promise', function() {
-        var p;
-        p = dataService.getBuilds();
-        expect(angular.isFunction(p.then)).toBeTruthy();
-        return expect(angular.isFunction(p.getArray)).toBeTruthy();
-      });
-      it('should call get for the rest api endpoint', function() {
-        var d;
-        d = $q.defer();
-        spyOn(restService, 'get').and.returnValue(d.promise);
-        expect(restService.get).not.toHaveBeenCalled();
-        $rootScope.$apply(function() {
-          return dataService.get('asd', {
-            subscribe: false
-          });
-        });
-        return expect(restService.get).toHaveBeenCalledWith('asd', {});
-      });
-      it('should send startConsuming with the socket path', function() {
-        var d;
-        d = $q.defer();
-        spyOn(socketService, 'send').and.returnValue(d.promise);
-        expect(socketService.send).not.toHaveBeenCalled();
-        $rootScope.$apply(function() {
-          return dataService.get('asd');
-        });
-        expect(socketService.send).toHaveBeenCalledWith({
-          cmd: 'startConsuming',
-          path: 'asd/*/*'
-        });
-        $rootScope.$apply(function() {
-          return dataService.get('asd', 1);
-        });
-        return expect(socketService.send).toHaveBeenCalledWith({
-          cmd: 'startConsuming',
-          path: 'asd/1/*'
-        });
-      });
-      it('should not call startConsuming when {subscribe: false} is passed in', function() {
-        var d;
-        d = $q.defer();
-        spyOn(restService, 'get').and.returnValue(d.promise);
-        spyOn(dataService, 'startConsuming');
-        expect(dataService.startConsuming).not.toHaveBeenCalled();
-        $rootScope.$apply(function() {
-          return dataService.getBuilds({
-            subscribe: false
-          });
-        });
-        return expect(dataService.startConsuming).not.toHaveBeenCalled();
-      });
-      return it('should add the new instance on /new WebSocket message', function() {
-        var builds;
-        spyOn(restService, 'get').and.returnValue($q.resolve({
-          builds: []
-        }));
-        builds = null;
-        $rootScope.$apply(function() {
-          return builds = dataService.getBuilds({
-            subscribe: false
-          }).getArray();
-        });
-        socketService.eventStream.push({
-          k: 'builds/111/new',
-          m: {
-            asd: 111
-          }
-        });
-        return expect(builds.pop().asd).toBe(111);
-      });
-    });
-    describe('control(method, params)', function() {
-      return it('should send a jsonrpc message using POST', function() {
-        var method, params;
-        spyOn(restService, 'post');
-        expect(restService.post).not.toHaveBeenCalled();
-        method = 'force';
-        params = {
-          a: 1
-        };
-        dataService.control("a", 1, method, params);
-        return expect(restService.post).toHaveBeenCalledWith("a/1", {
-          id: 1,
-          jsonrpc: '2.0',
-          method: method,
-          params: params
-        });
-      });
-    });
-    return describe('open()', function() {
-      var opened;
-      opened = null;
-      beforeEach(function() {
-        return opened = dataService.open();
-      });
-      it('should return a new accessor', function() {
-        return expect(opened).toEqual(jasmine.any(Object));
-      });
-      it('should have getXxx functions for endpoints', function() {
-        var E, e, i, len, results;
-        results = [];
-        for (i = 0, len = ENDPOINTS.length; i < len; i++) {
-          e = ENDPOINTS[i];
-          E = e[0].toUpperCase() + e.slice(1).toLowerCase();
-          expect(opened["get" + E]).toBeDefined();
-          results.push(expect(angular.isFunction(opened["get" + E])).toBeTruthy());
-        }
-        return results;
-      });
-      it('should call unsubscribe on each root class on close', function() {
-        var b, builds, i, j, k, len, len1, len2, p, results;
-        p = $q.resolve({
-          builds: [{}, {}, {}]
-        });
-        spyOn(restService, 'get').and.returnValue(p);
-        builds = null;
-        $rootScope.$apply(function() {
-          return builds = opened.getBuilds({
-            subscribe: false
-          }).getArray();
-        });
-        expect(builds.length).toBe(3);
-        for (i = 0, len = builds.length; i < len; i++) {
-          b = builds[i];
-          spyOn(b, 'unsubscribe');
-        }
-        for (j = 0, len1 = builds.length; j < len1; j++) {
-          b = builds[j];
-          expect(b.unsubscribe).not.toHaveBeenCalled();
-        }
-        opened.close();
-        results = [];
-        for (k = 0, len2 = builds.length; k < len2; k++) {
-          b = builds[k];
-          results.push(expect(b.unsubscribe).toHaveBeenCalled());
-        }
-        return results;
-      });
-      return it('should call close when the $scope is destroyed', function() {
-        var scope;
-        spyOn(opened, 'close');
-        scope = $rootScope.$new();
-        opened.closeOnDestroy(scope);
-        expect(opened.close).not.toHaveBeenCalled();
-        scope.$destroy();
-        return expect(opened.close).toHaveBeenCalled();
       });
     });
   });
@@ -44647,6 +44665,426 @@ if (window.jasmine || window.mocha) {
       expect(stream.onUnsubscribe).not.toHaveBeenCalled();
       unsubscribe();
       return expect(stream.onUnsubscribe).toHaveBeenCalledWith(listener);
+    });
+  });
+
+}).call(this);
+
+(function() {
+  describe('Collection', function() {
+    var $filter, $q, $rootScope, $timeout, Collection, c, indexedDBService, injected, tabexService;
+    beforeEach(module('bbData'));
+    Collection = $q = $rootScope = tabexService = indexedDBService = c = $timeout = $filter = void 0;
+    injected = function($injector) {
+      $q = $injector.get('$q');
+      $rootScope = $injector.get('$rootScope');
+      Collection = $injector.get('Collection');
+      $timeout = $injector.get('$timeout');
+      return $filter = $injector.get('$filter');
+    };
+    beforeEach(inject(injected));
+    describe("simple collection", function() {
+      beforeEach(function() {
+        return c = new Collection('builds');
+      });
+      it('should be defined', function() {
+        expect(Collection).toBeDefined();
+        return expect(c).toBeDefined();
+      });
+      it('should be like an array', function() {
+        return expect(angular.isArray(c)).toBeTruthy();
+      });
+      it('should be filterable with angular.filter', function() {
+        var filtered;
+        c.from([
+          {
+            buildid: 1
+          }, {
+            buildid: 2
+          }
+        ]);
+        filtered = $filter('filter')(c, {
+          buildid: 1
+        });
+        return expect(filtered.length).toBe(1);
+      });
+      it('empty collection should be filterable with angular.filter', function() {
+        var filtered;
+        filtered = $filter('filter')(c, {
+          buildid: 1
+        });
+        return expect(filtered.length).toBe(0);
+      });
+      it('should have a put function, which does not add twice for the same id', function() {
+        c.put({
+          buildid: 1
+        });
+        expect(c.length).toEqual(1);
+        c.put({
+          buildid: 1
+        });
+        expect(c.length).toEqual(1);
+        c.put({
+          buildid: 2
+        });
+        return expect(c.length).toEqual(2);
+      });
+      it('should have a from function, which iteratively inserts data', function() {
+        c.from([
+          {
+            buildid: 1
+          }, {
+            buildid: 2
+          }, {
+            buildid: 2
+          }
+        ]);
+        return expect(c.length).toEqual(2);
+      });
+      return it("should order the updates correctly", function() {
+        c.listener({
+          k: "builds/1/update",
+          m: {
+            buildid: 1,
+            value: 1
+          }
+        });
+        c.initial([
+          {
+            buildid: 1,
+            value: 0
+          }
+        ]);
+        expect(c[0].value).toEqual(1);
+        c.listener({
+          k: "builds/1/update",
+          m: {
+            buildid: 1,
+            value: 2
+          }
+        });
+        return expect(c[0].value).toEqual(2);
+      });
+    });
+    describe("queried collection", function() {
+      beforeEach(function() {
+        return c = new Collection('builds', {
+          order: '-buildid',
+          limit: 2
+        });
+      });
+      it('should have a from function, which iteratively inserts data', function() {
+        c.from([
+          {
+            buildid: 1
+          }, {
+            buildid: 2
+          }, {
+            buildid: 2
+          }
+        ]);
+        expect(c.length).toEqual(2);
+        c.from([
+          {
+            buildid: 3
+          }, {
+            buildid: 4
+          }, {
+            buildid: 5
+          }
+        ]);
+        expect(c.length).toEqual(2);
+        expect(c[0].buildid).toEqual(5);
+        return expect(c[1].buildid).toEqual(4);
+      });
+      return it('should call the event handlers', function() {
+        spyOn(c, 'onNew');
+        spyOn(c, 'onChange');
+        spyOn(c, 'onUpdate');
+        c.from([
+          {
+            buildid: 1
+          }, {
+            buildid: 2
+          }, {
+            buildid: 2
+          }
+        ]);
+        $timeout.flush();
+        expect(c.onNew.calls.count()).toEqual(2);
+        expect(c.onUpdate.calls.count()).toEqual(1);
+        expect(c.onChange.calls.count()).toEqual(1);
+        c.onNew.calls.reset();
+        c.onUpdate.calls.reset();
+        c.onChange.calls.reset();
+        c.from([
+          {
+            buildid: 3
+          }, {
+            buildid: 4
+          }, {
+            buildid: 5
+          }
+        ]);
+        $timeout.flush();
+        expect(c.onNew.calls.count()).toEqual(2);
+        expect(c.onUpdate.calls.count()).toEqual(0);
+        return expect(c.onChange.calls.count()).toEqual(1);
+      });
+    });
+    return describe("singleid collection", function() {
+      beforeEach(function() {
+        return c = new Collection('builds/1');
+      });
+      return it("should manage the updates correctly", function() {
+        c.listener({
+          k: "builds/1/update",
+          m: {
+            buildid: 1,
+            value: 1
+          }
+        });
+        c.listener({
+          k: "builds/2/update",
+          m: {
+            buildid: 2,
+            value: 2
+          }
+        });
+        c.initial([
+          {
+            buildid: 1,
+            value: 0
+          }
+        ]);
+        expect(c.length).toEqual(1);
+        expect(c[0].value).toEqual(1);
+        c.listener({
+          k: "builds/1/update",
+          m: {
+            buildid: 1,
+            value: 2
+          }
+        });
+        return expect(c[0].value).toEqual(2);
+      });
+    });
+  });
+
+}).call(this);
+
+(function() {
+  describe('dataquery service', function() {
+    var $rootScope, DataQuery, injected, testArray, wrappedDataQuery;
+    beforeEach(module('bbData'));
+    DataQuery = testArray = $rootScope = wrappedDataQuery = void 0;
+    injected = function($injector) {
+      var WrappedDataQuery;
+      DataQuery = $injector.get('DataQuery');
+      $rootScope = $injector.get('$rootScope');
+      testArray = [
+        {
+          builderid: 1,
+          buildid: 3,
+          buildrequestid: 1,
+          complete: false,
+          complete_at: null,
+          started_at: 1417802797
+        }, {
+          builderid: 2,
+          buildid: 1,
+          buildrequestid: 1,
+          complete: true,
+          complete_at: 1417803429,
+          started_at: 1417803026
+        }, {
+          builderid: 1,
+          buildid: 2,
+          buildrequestid: 1,
+          complete: true,
+          complete_at: 1417803038,
+          started_at: 1417803025
+        }
+      ];
+      WrappedDataQuery = (function() {
+        function WrappedDataQuery() {}
+
+        WrappedDataQuery.prototype.filter = function(array, query) {
+          var q;
+          q = new DataQuery(query);
+          array = angular.copy(array);
+          q.filter(array);
+          return array;
+        };
+
+        WrappedDataQuery.prototype.sort = function(array, order) {
+          var q;
+          q = new DataQuery({
+            order: order
+          });
+          array = angular.copy(array);
+          q.sort(array, order);
+          return array;
+        };
+
+        WrappedDataQuery.prototype.limit = function(array, limit) {
+          var q;
+          q = new DataQuery({
+            limit: limit
+          });
+          array = angular.copy(array);
+          q.limit(array, limit);
+          return array;
+        };
+
+        return WrappedDataQuery;
+
+      })();
+      return wrappedDataQuery = new WrappedDataQuery();
+    };
+    beforeEach(inject(injected));
+    it('should be defined', function() {
+      return expect(DataQuery).toBeDefined();
+    });
+    describe('filter(array, filters)', function() {
+      it('should filter the array (one filter)', function() {
+        var result;
+        result = wrappedDataQuery.filter(testArray, {
+          complete: false
+        });
+        expect(result.length).toBe(1);
+        return expect(result).toContain(testArray[0]);
+      });
+      it('should filter the array (more than one filters)', function() {
+        var result;
+        result = wrappedDataQuery.filter(testArray, {
+          complete: true,
+          buildrequestid: 1
+        });
+        expect(result.length).toBe(2);
+        expect(result).toContain(testArray[1]);
+        return expect(result).toContain(testArray[2]);
+      });
+      it('should filter the array (eq - equal)', function() {
+        var result;
+        result = wrappedDataQuery.filter(testArray, {
+          'complete__eq': true
+        });
+        expect(result.length).toBe(2);
+        expect(result).toContain(testArray[1]);
+        return expect(result).toContain(testArray[2]);
+      });
+      it('should filter the array (ne - not equal)', function() {
+        var result;
+        result = wrappedDataQuery.filter(testArray, {
+          'complete__ne': true
+        });
+        expect(result.length).toBe(1);
+        return expect(result).toContain(testArray[0]);
+      });
+      it('should filter the array (lt - less than)', function() {
+        var result;
+        result = wrappedDataQuery.filter(testArray, {
+          'buildid__lt': 3
+        });
+        expect(result.length).toBe(2);
+        expect(result).toContain(testArray[1]);
+        return expect(result).toContain(testArray[2]);
+      });
+      it('should filter the array (le - less than or equal to)', function() {
+        var result;
+        result = wrappedDataQuery.filter(testArray, {
+          'buildid__le': 3
+        });
+        return expect(result.length).toBe(3);
+      });
+      it('should filter the array (gt - greater than)', function() {
+        var result;
+        result = wrappedDataQuery.filter(testArray, {
+          'started_at__gt': 1417803025
+        });
+        expect(result.length).toBe(1);
+        return expect(result).toContain(testArray[1]);
+      });
+      it('should filter the array (ge - greater than or equal to)', function() {
+        var result;
+        result = wrappedDataQuery.filter(testArray, {
+          'started_at__ge': 1417803025
+        });
+        expect(result.length).toBe(2);
+        expect(result).toContain(testArray[1]);
+        return expect(result).toContain(testArray[2]);
+      });
+      return it('should convert on/off, true/false, yes/no to boolean', function() {
+        var result, resultFalse, resultTrue;
+        resultTrue = wrappedDataQuery.filter(testArray, {
+          complete: true
+        });
+        resultFalse = wrappedDataQuery.filter(testArray, {
+          complete: false
+        });
+        result = wrappedDataQuery.filter(testArray, {
+          complete: 'on'
+        });
+        expect(result).toEqual(resultTrue);
+        result = wrappedDataQuery.filter(testArray, {
+          complete: 'true'
+        });
+        expect(result).toEqual(resultTrue);
+        result = wrappedDataQuery.filter(testArray, {
+          complete: 'yes'
+        });
+        expect(result).toEqual(resultTrue);
+        result = wrappedDataQuery.filter(testArray, {
+          complete: 'off'
+        });
+        expect(result).toEqual(resultFalse);
+        result = wrappedDataQuery.filter(testArray, {
+          complete: 'false'
+        });
+        expect(result).toEqual(resultFalse);
+        result = wrappedDataQuery.filter(testArray, {
+          complete: 'no'
+        });
+        return expect(result).toEqual(resultFalse);
+      });
+    });
+    describe('sort(array, order)', function() {
+      it('should sort the array (one parameter)', function() {
+        var result;
+        result = wrappedDataQuery.sort(testArray, 'buildid');
+        expect(result[0]).toEqual(testArray[1]);
+        expect(result[1]).toEqual(testArray[2]);
+        return expect(result[2]).toEqual(testArray[0]);
+      });
+      it('should sort the array (one parameter, - reverse)', function() {
+        var result;
+        result = wrappedDataQuery.sort(testArray, '-buildid');
+        expect(result[0]).toEqual(testArray[0]);
+        expect(result[1]).toEqual(testArray[2]);
+        return expect(result[2]).toEqual(testArray[1]);
+      });
+      return it('should sort the array (more parameter)', function() {
+        var result;
+        result = wrappedDataQuery.sort(testArray, ['builderid', '-buildid']);
+        expect(result[0]).toEqual(testArray[0]);
+        expect(result[1]).toEqual(testArray[2]);
+        return expect(result[2]).toEqual(testArray[1]);
+      });
+    });
+    return describe('limit(array, limit)', function() {
+      it('should slice the array', function() {
+        var result;
+        result = wrappedDataQuery.limit(testArray, 1);
+        expect(result.length).toBe(1);
+        return expect(result[0]).toEqual(testArray[0]);
+      });
+      return it('should return the array when the limit >= array.length', function() {
+        var result;
+        result = wrappedDataQuery.limit(testArray, 3);
+        expect(result.length).toBe(3);
+        return expect(result[2]).toEqual(testArray[2]);
+      });
     });
   });
 

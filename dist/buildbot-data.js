@@ -56,6 +56,7 @@
           if (!angular.isString(this._endpoint)) {
             throw new TypeError("Parameter 'endpoint' must be a string, not " + (typeof this.endpoint));
           }
+          this.$accessor = null;
           this.update(object);
           this.constructor.generateFunctions(childEndpoints);
           classId = dataUtilsService.classId(this._endpoint);
@@ -63,8 +64,11 @@
           if (this._id != null) {
             this._endpoint = dataUtilsService.type(this._endpoint);
           }
-          this.subscribe();
         }
+
+        BaseInstance.prototype.setAccessor = function(a) {
+          return this.$accessor = a;
+        };
 
         BaseInstance.prototype.update = function(o) {
           return angular.merge(this, o);
@@ -80,54 +84,27 @@
           return dataService.control(this._endpoint, this._id, method, params);
         };
 
-        BaseInstance.prototype.subscribe = function() {
-          var listener;
-          listener = (function(_this) {
-            return function(data) {
-              var key, message, streamRegex;
-              key = data.k;
-              message = data.m;
-              streamRegex = RegExp("^" + _this._endpoint + "\\/" + _this._id + "\\/\\w+$", "g");
-              if (streamRegex.test(key)) {
-                return _this.update(message);
-              }
-            };
-          })(this);
-          this._unsubscribeEventListener = socketService.eventStream.subscribe(listener);
-          return this._listenerId = listener.id;
-        };
-
-        BaseInstance.prototype.unsubscribe = function() {
-          var k, v;
-          for (k in this) {
-            v = this[k];
-            if (angular.isArray(v)) {
-              v.forEach(function(e) {
-                if (e instanceof BaseInstance) {
-                  return e.unsubscribe();
-                }
-              });
-            }
-          }
-          return this._unsubscribeEventListener();
-        };
-
         BaseInstance.generateFunctions = function(endpoints) {
           return endpoints.forEach((function(_this) {
             return function(e) {
               var E;
               E = dataUtilsService.capitalize(e);
               _this.prototype["load" + E] = function() {
-                var args, p;
-                args = 1 <= arguments.length ? slice.call(arguments, 0) : [];
-                p = this.get.apply(this, [e].concat(slice.call(args)));
-                this[e] = p.getArray();
-                return p;
-              };
-              return _this.prototype["get" + E] = function() {
                 var args;
                 args = 1 <= arguments.length ? slice.call(arguments, 0) : [];
-                return this.get.apply(this, [e].concat(slice.call(args)));
+                return this[e] = this.get.apply(this, [e].concat(slice.call(args)));
+              };
+              return _this.prototype["get" + E] = function() {
+                var args, query, ref;
+                args = 1 <= arguments.length ? slice.call(arguments, 0) : [];
+                ref = dataUtilsService.splitOptions(args), args = ref[0], query = ref[1];
+                if (this.$accessor) {
+                  if (query.subscribe == null) {
+                    query.subscribe = true;
+                  }
+                  query.accessor = this.$accessor;
+                }
+                return this.get.apply(this, [e].concat(slice.call(args), [query]));
               };
             };
           })(this));
@@ -300,13 +277,30 @@
     hasProp = {}.hasOwnProperty;
 
   Change = (function() {
-    function Change(Base, dataService) {
+    function Change(Base, dataService, dataUtilsService) {
       var ChangeInstance;
       return ChangeInstance = (function(superClass) {
         extend(ChangeInstance, superClass);
 
         function ChangeInstance(object, endpoint) {
+          var author, email;
           ChangeInstance.__super__.constructor.call(this, object, endpoint);
+          author = this.author;
+          if (this.author == null) {
+            author = "unknown";
+          }
+          email = dataUtilsService.emailInString(author);
+          if (email) {
+            if (author.split(' ').length > 1) {
+              this.author_name = author.replace(RegExp("\\s<" + email + ">"), '');
+              this.author_email = email;
+            } else {
+              this.author_name = email.split("@")[0];
+              this.author_email = email;
+            }
+          } else {
+            this.author_name = author;
+          }
         }
 
         return ChangeInstance;
@@ -318,7 +312,7 @@
 
   })();
 
-  angular.module('bbData').factory('Change', ['Base', 'dataService', Change]);
+  angular.module('bbData').factory('Change', ['Base', 'dataService', 'dataUtilsService', Change]);
 
 }).call(this);
 
@@ -555,6 +549,257 @@
 }).call(this);
 
 (function() {
+  var Data,
+    slice = [].slice;
+
+  Data = (function() {
+    function Data() {}
+
+    Data.prototype.cache = false;
+
+
+    /* @ngInject */
+
+    Data.prototype.$get = function($log, $injector, $q, restService, socketService, dataUtilsService, Collection, ENDPOINTS) {
+      var DataService;
+      return new (DataService = (function() {
+        var self;
+
+        self = null;
+
+        function DataService() {
+          self = this;
+          socketService.onclose = this.socketCloseListener;
+          this.constructor.generateEndpoints();
+        }
+
+        DataService.prototype.get = function() {
+          var accessor, args, collection, query, ref, restPath, subscribe, subscribePromise;
+          args = 1 <= arguments.length ? slice.call(arguments, 0) : [];
+          ref = dataUtilsService.splitOptions(args), args = ref[0], query = ref[1];
+          subscribe = accessor = void 0;
+          subscribe = query.subscribe === true;
+          accessor = query.accessor;
+          if (subscribe && !accessor) {
+            $log.warn("subscribe call should be done after DataService.open()");
+            $log.warn("for maintaining trace of observers");
+            subscribe = false;
+          }
+          delete query.subscribe;
+          delete query.accessor;
+          restPath = dataUtilsService.restPath(args);
+          collection = new Collection(restPath, query, accessor);
+          if (subscribe) {
+            subscribePromise = collection.subscribe();
+          } else {
+            subscribePromise = $q.resolve();
+          }
+          subscribePromise.then(function() {
+            return restService.get(restPath, query).then(function(response) {
+              var datalist, e, type;
+              type = dataUtilsService.type(restPath);
+              datalist = response[type];
+              if (!angular.isArray(datalist)) {
+                e = datalist + " is not an array";
+                $log.error(e);
+                return;
+              }
+              return collection.initial(datalist);
+            });
+          });
+          return collection;
+        };
+
+        DataService.prototype.control = function(ep, id, method, params) {
+          var restPath;
+          if (params == null) {
+            params = {};
+          }
+          restPath = dataUtilsService.restPath([ep, id]);
+          return restService.post(restPath, {
+            id: this.getNextId(),
+            jsonrpc: '2.0',
+            method: method,
+            params: params
+          });
+        };
+
+        DataService.prototype.getNextId = function() {
+          if (this.jsonrpc == null) {
+            this.jsonrpc = 1;
+          }
+          return this.jsonrpc++;
+        };
+
+        DataService.generateEndpoints = function() {
+          return ENDPOINTS.forEach((function(_this) {
+            return function(e) {
+              var E;
+              E = dataUtilsService.capitalize(e);
+              return _this.prototype["get" + E] = function() {
+                var args;
+                args = 1 <= arguments.length ? slice.call(arguments, 0) : [];
+                return self.get.apply(self, [e].concat(slice.call(args)));
+              };
+            };
+          })(this));
+        };
+
+        DataService.prototype.open = function() {
+          var DataAccessor;
+          return new (DataAccessor = (function() {
+            var collectionRefs;
+
+            collectionRefs = [];
+
+            function DataAccessor() {
+              this.constructor.generateEndpoints();
+            }
+
+            DataAccessor.prototype.registerCollection = function(c) {
+              return collectionRefs.push(c);
+            };
+
+            DataAccessor.prototype.close = function() {
+              return collectionRefs.forEach(function(c) {
+                return c.close();
+              });
+            };
+
+            DataAccessor.prototype.closeOnDestroy = function(scope) {
+              if (!angular.isFunction(scope.$on)) {
+                throw new TypeError("Parameter 'scope' doesn't have an $on function");
+              }
+              scope.$on('$destroy', (function(_this) {
+                return function() {
+                  return _this.close();
+                };
+              })(this));
+              return this;
+            };
+
+            DataAccessor.generateEndpoints = function() {
+              return ENDPOINTS.forEach((function(_this) {
+                return function(e) {
+                  var E;
+                  E = dataUtilsService.capitalize(e);
+                  return _this.prototype["get" + E] = function() {
+                    var args, query, ref;
+                    args = 1 <= arguments.length ? slice.call(arguments, 0) : [];
+                    ref = dataUtilsService.splitOptions(args), args = ref[0], query = ref[1];
+                    if (query.subscribe == null) {
+                      query.subscribe = true;
+                    }
+                    query.accessor = this;
+                    return self.get.apply(self, [e].concat(slice.call(args), [query]));
+                  };
+                };
+              })(this));
+            };
+
+            return DataAccessor;
+
+          })());
+        };
+
+        DataService.prototype.mocks = {};
+
+        DataService.prototype.spied = false;
+
+        DataService.prototype.when = function(url, query, returnValue) {
+          var base, ref;
+          if (returnValue == null) {
+            ref = [{}, query], query = ref[0], returnValue = ref[1];
+          }
+          if ((typeof jasmine !== "undefined" && jasmine !== null) && !this.spied) {
+            spyOn(this, 'get').and.callFake(this._mockGet);
+            this.spied = true;
+          }
+          if ((base = this.mocks)[url] == null) {
+            base[url] = {};
+          }
+          return this.mocks[url][query] = returnValue;
+        };
+
+        DataService.prototype.expect = function(url, query, returnValue) {
+          var ref;
+          if (returnValue == null) {
+            ref = [{}, query], query = ref[0], returnValue = ref[1];
+          }
+          if (this._expects == null) {
+            this._expects = [];
+          }
+          this._expects.push([url, query]);
+          return this.when(url, query, returnValue);
+        };
+
+        DataService.prototype.verifyNoOutstandingExpectation = function() {
+          if ((this._expects != null) && this._expects.length) {
+            return fail(("expecting " + this._expects.length + " more data requests ") + ("(" + (angular.toJson(this._expects)) + ")"));
+          }
+        };
+
+        DataService.prototype._mockGet = function() {
+          var args, collection, exp_query, exp_url, k, query, queryWithoutSubscribe, ref, ref1, ref2, ref3, returnValue, url, v;
+          args = 1 <= arguments.length ? slice.call(arguments, 0) : [];
+          ref = this.processArguments(args), url = ref[0], query = ref[1];
+          queryWithoutSubscribe = {};
+          for (k in query) {
+            v = query[k];
+            if (k !== "subscribe" && k !== "accessor") {
+              queryWithoutSubscribe[k] = v;
+            }
+          }
+          if (this._expects) {
+            ref1 = this._expects.shift(), exp_url = ref1[0], exp_query = ref1[1];
+            expect(exp_url).toEqual(url);
+            expect(exp_query).toEqual(queryWithoutSubscribe);
+          }
+          returnValue = ((ref2 = this.mocks[url]) != null ? ref2[query] : void 0) || ((ref3 = this.mocks[url]) != null ? ref3[queryWithoutSubscribe] : void 0);
+          if (returnValue == null) {
+            throw new Error(("No return value for: " + url + " ") + ("(" + (angular.toJson(queryWithoutSubscribe)) + ")"));
+          }
+          collection = this.createCollection(url, queryWithoutSubscribe, returnValue);
+          return collection;
+        };
+
+        DataService.prototype.processArguments = function(args) {
+          var query, ref, restPath;
+          ref = dataUtilsService.splitOptions(args), args = ref[0], query = ref[1];
+          restPath = dataUtilsService.restPath(args);
+          return [restPath, query || {}];
+        };
+
+        DataService.prototype.createCollection = function(url, query, response) {
+          var collection, id, idCounter, restPath, type;
+          restPath = url;
+          type = dataUtilsService.type(restPath);
+          collection = new Collection(restPath, query);
+          id = collection.id;
+          idCounter = 1;
+          response.forEach(function(d) {
+            if (!d.hasOwnProperty(id)) {
+              return d[id] = idCounter++;
+            }
+          });
+          collection.initial(response);
+          return collection;
+        };
+
+        return DataService;
+
+      })());
+    };
+
+    return Data;
+
+  })();
+
+  angular.module('bbData').provider('dataService', [Data]);
+
+}).call(this);
+
+(function() {
   var DataUtils;
 
   DataUtils = (function() {
@@ -568,7 +813,7 @@
         };
 
         dataUtilsService.prototype.type = function(arg) {
-          var a;
+          var a, type;
           a = this.copyOrSplit(arg);
           a = a.filter(function(e) {
             return e !== '*';
@@ -576,7 +821,11 @@
           if (a.length % 2 === 0) {
             a.pop();
           }
-          return a.pop();
+          type = a.pop();
+          if (type === "contents") {
+            type = "logchunks";
+          }
+          return type;
         };
 
         dataUtilsService.prototype.singularType = function(arg) {
@@ -588,6 +837,12 @@
         };
 
         dataUtilsService.prototype.classId = function(arg) {
+          if (this.singularType(arg) === "forcescheduler") {
+            return "name";
+          }
+          if (this.singularType(arg) === "buildset") {
+            return "bsid";
+          }
           return this.singularType(arg) + "id";
         };
 
@@ -599,6 +854,10 @@
             stars.push('*');
           }
           return a.concat(stars).join('/');
+        };
+
+        dataUtilsService.prototype.socketPathRE = function(socketPath) {
+          return new RegExp("^" + socketPath.replace(/\*/g, "[^/]+") + "$");
         };
 
         dataUtilsService.prototype.restPath = function(arg) {
@@ -634,6 +893,20 @@
 
         dataUtilsService.prototype.unWrap = function(object, path) {
           return object[this.type(path)];
+        };
+
+        dataUtilsService.prototype.splitOptions = function(args) {
+          var accessor, last, query, subscribe;
+          args = args.filter(function(e) {
+            return e != null;
+          });
+          query = {};
+          last = args[args.length - 1];
+          subscribe = accessor = null;
+          if (angular.isObject(last)) {
+            query = args.pop();
+          }
+          return [args, query];
         };
 
         dataUtilsService.prototype.parse = function(object) {
@@ -692,350 +965,6 @@
 }).call(this);
 
 (function() {
-  var Data,
-    bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
-    slice = [].slice;
-
-  Data = (function() {
-    function Data() {}
-
-    Data.prototype.cache = false;
-
-
-    /* @ngInject */
-
-    Data.prototype.$get = function($log, $injector, $q, restService, socketService, dataUtilsService, ENDPOINTS) {
-      var DataService;
-      return new (DataService = (function() {
-        var self;
-
-        self = null;
-
-        function DataService() {
-          this.socketCloseListener = bind(this.socketCloseListener, this);
-          this.unsubscribeListener = bind(this.unsubscribeListener, this);
-          self = this;
-          socketService.onclose = this.socketCloseListener;
-          this.constructor.generateEndpoints();
-        }
-
-        DataService.prototype.get = function() {
-          var args, last, promise, query, subscribe, updating;
-          args = 1 <= arguments.length ? slice.call(arguments, 0) : [];
-          args = args.filter(function(e) {
-            return e != null;
-          });
-          last = args[args.length - 1];
-          subscribe = last.subscribe || (last.subscribe == null);
-          if (angular.isObject(last)) {
-            query = args.pop();
-            delete query.subscribe;
-          }
-          updating = [];
-          promise = $q((function(_this) {
-            return function(resolve, reject) {
-              var messages, socketPath, socketPromise, unsubscribe;
-              if (subscribe) {
-                messages = [];
-                unsubscribe = socketService.eventStream.subscribe(function(data) {
-                  return messages.push(data);
-                });
-                socketPath = dataUtilsService.socketPath(args);
-                socketPromise = _this.startConsuming(socketPath);
-              } else {
-                socketPromise = $q.resolve();
-              }
-              return socketPromise.then(function() {
-                var restPath, restPromise;
-                restPath = dataUtilsService.restPath(args);
-                restPromise = restService.get(restPath, query);
-                return restPromise.then(function(response) {
-                  var WrapperClass, base, className, e, endpoint, error, type;
-                  type = dataUtilsService.type(restPath);
-                  response = response[type];
-                  try {
-                    className = dataUtilsService.className(restPath);
-                    WrapperClass = $injector.get(className);
-                  } catch (error) {
-                    e = error;
-                    console.log("unknown wrapper for", className);
-                    WrapperClass = $injector.get('Base');
-                  }
-                  if (angular.isArray(response)) {
-                    endpoint = dataUtilsService.endpointPath(args);
-                    response = response.map(function(i) {
-                      return new WrapperClass(i, endpoint);
-                    });
-                    if (_this.listeners == null) {
-                      _this.listeners = {};
-                    }
-                    if ((base = _this.listeners)[socketPath] == null) {
-                      base[socketPath] = [];
-                    }
-                    response.forEach(function(r) {
-                      return _this.listeners[socketPath].push(r._listenerId);
-                    });
-                    socketService.eventStream.subscribe(function(data) {
-                      var key, message, newInstance, streamRegex;
-                      key = data.k;
-                      message = data.m;
-                      streamRegex = RegExp("^" + endpoint + "\\/(\\w+|\\d+)\\/new$", "g");
-                      if (streamRegex.test(key)) {
-                        newInstance = new WrapperClass(message, endpoint);
-                        updating.push(newInstance);
-                        return _this.listeners[socketPath].push(newInstance._listenerId);
-                      }
-                    });
-                    if (subscribe) {
-                      messages.forEach(function(m) {
-                        return socketService.eventStream.push(m);
-                      });
-                      unsubscribe();
-                    }
-                    angular.copy(response, updating);
-                    return resolve(updating);
-                  } else {
-                    e = response + " is not an array";
-                    $log.error(e);
-                    return reject(e);
-                  }
-                }, function(e) {
-                  return reject(e);
-                });
-              }, function(e) {
-                return reject(e);
-              });
-            };
-          })(this));
-          promise.getArray = function() {
-            return updating;
-          };
-          return promise;
-        };
-
-        DataService.prototype.startConsuming = function(path) {
-          return socketService.send({
-            cmd: 'startConsuming',
-            path: path
-          });
-        };
-
-        DataService.prototype.stopConsuming = function(path) {
-          return socketService.send({
-            cmd: 'stopConsuming',
-            path: path
-          });
-        };
-
-        DataService.prototype.unsubscribeListener = function(removed) {
-          var i, ids, path, ref, results;
-          ref = this.listeners;
-          results = [];
-          for (path in ref) {
-            ids = ref[path];
-            i = ids.indexOf(removed.id);
-            if (i > -1) {
-              ids.splice(i, 1);
-              if (ids.length === 0) {
-                results.push(this.stopConsuming(path));
-              } else {
-                results.push(void 0);
-              }
-            } else {
-              results.push(void 0);
-            }
-          }
-          return results;
-        };
-
-        DataService.prototype.socketCloseListener = function() {
-          var ids, path, ref;
-          if (this.listeners == null) {
-            return;
-          }
-          ref = this.listeners;
-          for (path in ref) {
-            ids = ref[path];
-            if (ids.length > 0) {
-              this.startConsuming(path);
-            }
-          }
-          return null;
-        };
-
-        DataService.prototype.control = function(ep, id, method, params) {
-          var restPath;
-          if (params == null) {
-            params = {};
-          }
-          restPath = dataUtilsService.restPath([ep, id]);
-          return restService.post(restPath, {
-            id: this.getNextId(),
-            jsonrpc: '2.0',
-            method: method,
-            params: params
-          });
-        };
-
-        DataService.prototype.getNextId = function() {
-          if (this.jsonrpc == null) {
-            this.jsonrpc = 1;
-          }
-          return this.jsonrpc++;
-        };
-
-        DataService.generateEndpoints = function() {
-          return ENDPOINTS.forEach((function(_this) {
-            return function(e) {
-              var E;
-              E = dataUtilsService.capitalize(e);
-              return _this.prototype["get" + E] = function() {
-                var args;
-                args = 1 <= arguments.length ? slice.call(arguments, 0) : [];
-                return self.get.apply(self, [e].concat(slice.call(args)));
-              };
-            };
-          })(this));
-        };
-
-        DataService.prototype.open = function() {
-          var DataAccessor;
-          return new (DataAccessor = (function() {
-            var rootClasses;
-
-            rootClasses = [];
-
-            function DataAccessor() {
-              this.rootClasses = rootClasses;
-              this.constructor.generateEndpoints();
-            }
-
-            DataAccessor.prototype.close = function() {
-              return this.rootClasses.forEach(function(c) {
-                return c.unsubscribe();
-              });
-            };
-
-            DataAccessor.prototype.closeOnDestroy = function(scope) {
-              if (!angular.isFunction(scope.$on)) {
-                throw new TypeError("Parameter 'scope' doesn't have an $on function");
-              }
-              return scope.$on('$destroy', (function(_this) {
-                return function() {
-                  return _this.close();
-                };
-              })(this));
-            };
-
-            DataAccessor.generateEndpoints = function() {
-              return ENDPOINTS.forEach((function(_this) {
-                return function(e) {
-                  var E;
-                  E = dataUtilsService.capitalize(e);
-                  return _this.prototype["get" + E] = function() {
-                    var args, p;
-                    args = 1 <= arguments.length ? slice.call(arguments, 0) : [];
-                    p = self["get" + E].apply(self, args);
-                    p.then(function(classes) {
-                      return classes.forEach(function(c) {
-                        return rootClasses.push(c);
-                      });
-                    });
-                    return p;
-                  };
-                };
-              })(this));
-            };
-
-            return DataAccessor;
-
-          })());
-        };
-
-        DataService.prototype.mocks = {};
-
-        DataService.prototype.spied = false;
-
-        DataService.prototype.when = function() {
-          var args, base, query, ref, returnValue, url;
-          args = 1 <= arguments.length ? slice.call(arguments, 0) : [];
-          url = args[0], query = args[1], returnValue = args[2];
-          if (returnValue == null) {
-            ref = [{}, query], query = ref[0], returnValue = ref[1];
-          }
-          if ((typeof jasmine !== "undefined" && jasmine !== null) && !this.spied) {
-            spyOn(this, 'get').and.callFake(this._mockGet);
-            this.spied = true;
-          }
-          if ((base = this.mocks)[url] == null) {
-            base[url] = {};
-          }
-          return this.mocks[url][query] = returnValue;
-        };
-
-        DataService.prototype._mockGet = function() {
-          var args, collection, p, query, queryWithoutSubscribe, ref, ref1, ref2, returnValue, url;
-          args = 1 <= arguments.length ? slice.call(arguments, 0) : [];
-          ref = this.processArguments(args), url = ref[0], query = ref[1];
-          queryWithoutSubscribe = angular.copy(query);
-          delete queryWithoutSubscribe.subscribe;
-          returnValue = ((ref1 = this.mocks[url]) != null ? ref1[query] : void 0) || ((ref2 = this.mocks[url]) != null ? ref2[queryWithoutSubscribe] : void 0);
-          if (returnValue == null) {
-            throw new Error("No return value for: " + url + " (" + (angular.toJson(query)) + ")");
-          }
-          collection = this.createCollection(url, query, returnValue);
-          p = $q.resolve(collection);
-          p.getArray = function() {
-            return collection;
-          };
-          return p;
-        };
-
-        DataService.prototype.processArguments = function(args) {
-          var last, query, restPath;
-          args.filter(function(e) {
-            return e != null;
-          });
-          last = args[args.length - 1];
-          if (angular.isObject(last)) {
-            query = args.pop();
-          }
-          restPath = dataUtilsService.restPath(args);
-          return [restPath, query || {}];
-        };
-
-        DataService.prototype.createCollection = function(url, query, response) {
-          var WrapperClass, className, e, endpoint, error, restPath, type;
-          restPath = url;
-          type = dataUtilsService.type(restPath);
-          try {
-            className = dataUtilsService.className(restPath);
-            WrapperClass = $injector.get(className);
-          } catch (error) {
-            e = error;
-            console.log("unknown wrapper for", className);
-            WrapperClass = $injector.get('Base');
-          }
-          endpoint = dataUtilsService.endpointPath([restPath]);
-          return response = response.map(function(i) {
-            return new WrapperClass(i, endpoint);
-          });
-        };
-
-        return DataService;
-
-      })());
-    };
-
-    return Data;
-
-  })();
-
-  angular.module('bbData').provider('dataService', [Data]);
-
-}).call(this);
-
-(function() {
   var Rest,
     slice = [].slice;
 
@@ -1046,22 +975,20 @@
         function RestService() {}
 
         RestService.prototype.execute = function(config) {
-          return $q((function(_this) {
-            return function(resolve, reject) {
-              return $http(config).success(function(response) {
-                var data, e, error;
-                try {
-                  data = angular.fromJson(response);
-                  return resolve(data);
-                } catch (error) {
-                  e = error;
-                  return reject(e);
-                }
-              }).error(function(reason) {
-                return reject(reason);
-              });
-            };
-          })(this));
+          return $q(function(resolve, reject) {
+            return $http(config).success(function(response) {
+              var data, e, error;
+              try {
+                data = angular.fromJson(response);
+                return resolve(data);
+              } catch (error) {
+                e = error;
+                return reject(e);
+              }
+            }).error(function(reason) {
+              return reject(reason);
+            });
+          });
         };
 
         RestService.prototype.get = function(url, params) {
@@ -1127,6 +1054,7 @@
         function SocketService() {
           this.queue = [];
           this.deferred = {};
+          this.subscribers = {};
           this.open();
         }
 
@@ -1220,6 +1148,35 @@
           path = this.getRootPath();
           port = $location.port() === defaultport ? '' : ':' + $location.port();
           return protocol + "://" + host + port + path + "ws";
+        };
+
+        SocketService.prototype.subscribe = function(eventPath, collection) {
+          var base, l;
+          l = (base = this.subscribers)[eventPath] != null ? base[eventPath] : base[eventPath] = [];
+          l.push(collection);
+          if (l.length === 1) {
+            return this.send({
+              cmd: "startConsuming",
+              path: eventPath
+            });
+          }
+          return $q.resolve();
+        };
+
+        SocketService.prototype.unsubscribe = function(eventPath, collection) {
+          var base, l, pos;
+          l = (base = this.subscribers)[eventPath] != null ? base[eventPath] : base[eventPath] = [];
+          pos = l.indexOf(collection);
+          if (pos >= 0) {
+            l.splice(pos, 1);
+            if (l.length === 0) {
+              return this.send({
+                cmd: "stopConsuming",
+                path: eventPath
+              });
+            }
+          }
+          return $q.resolve();
         };
 
         return SocketService;
@@ -1401,6 +1358,355 @@
   })();
 
   angular.module('bbData').factory('Stream', [Stream]);
+
+}).call(this);
+
+(function() {
+  var Collection,
+    bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
+    extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
+    hasProp = {}.hasOwnProperty,
+    indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
+
+  Collection = (function() {
+    function Collection($q, $injector, $log, dataUtilsService, socketService, DataQuery, $timeout) {
+      var CollectionInstance;
+      angular.isArray = Array.isArray = function(arg) {
+        return arg instanceof Array;
+      };
+      return CollectionInstance = (function(superClass) {
+        extend(CollectionInstance, superClass);
+
+        function CollectionInstance(restPath, query, accessor) {
+          var className, e, error, ref;
+          this.restPath = restPath;
+          this.query = query != null ? query : {};
+          this.accessor = accessor;
+          this.listener = bind(this.listener, this);
+          this.socketPath = dataUtilsService.socketPath(this.restPath);
+          this.type = dataUtilsService.type(this.restPath);
+          this.id = dataUtilsService.classId(this.restPath);
+          this.endpoint = dataUtilsService.endpointPath(this.restPath);
+          this.socketPathRE = dataUtilsService.socketPathRE(this.socketPath);
+          this.queryExecutor = new DataQuery(this.query);
+          this.onUpdate = angular.noop;
+          this.onNew = angular.noop;
+          this.onChange = angular.noop;
+          this._new = [];
+          this._updated = [];
+          this._byId = {};
+          try {
+            className = dataUtilsService.className(this.restPath);
+            this.WrapperClass = $injector.get(className);
+          } catch (error) {
+            e = error;
+            console.log("unknown wrapper for", className);
+            this.WrapperClass = $injector.get('Base');
+          }
+          socketService.eventStream.subscribe(this.listener);
+          if ((ref = this.accessor) != null) {
+            ref.registerCollection(this);
+          }
+        }
+
+        CollectionInstance.prototype.then = function(callback) {
+          console.log("Should not use collection as a promise. Callback will be called several times!");
+          return this.onChange = callback;
+        };
+
+        CollectionInstance.prototype.getArray = function() {
+          console.log("getArray() is deprecated. dataService.get() directly returns the collection!");
+          return this;
+        };
+
+        CollectionInstance.prototype.get = function(id) {
+          return this._byId[id];
+        };
+
+        CollectionInstance.prototype.hasOwnProperty = function(id) {
+          return this._byId.hasOwnProperty(id);
+        };
+
+        CollectionInstance.prototype.listener = function(data) {
+          var key, message;
+          key = data.k;
+          message = data.m;
+          if (this.socketPathRE.test(key)) {
+            this.put(message);
+            this.recomputeQuery();
+            return this.sendEvents();
+          }
+        };
+
+        CollectionInstance.prototype.subscribe = function() {
+          return socketService.subscribe(this.socketPath, this);
+        };
+
+        CollectionInstance.prototype.close = function() {
+          return socketService.unsubscribe(this.socketPath, this);
+        };
+
+        CollectionInstance.prototype.initial = function(data) {
+          var i, j, len;
+          for (j = 0, len = data.length; j < len; j++) {
+            i = data[j];
+            if (!this.hasOwnProperty(i[this.id])) {
+              this.put(i);
+            }
+          }
+          this.recomputeQuery();
+          return this.sendEvents();
+        };
+
+        CollectionInstance.prototype.from = function(data) {
+          var i, j, len;
+          for (j = 0, len = data.length; j < len; j++) {
+            i = data[j];
+            this.put(i);
+          }
+          this.recomputeQuery();
+          return this.sendEvents();
+        };
+
+        CollectionInstance.prototype.item = function(i) {
+          return this[i];
+        };
+
+        CollectionInstance.prototype.add = function(element) {
+          var instance;
+          if (this.queryExecutor.filter([element]).length === 0) {
+            return;
+          }
+          instance = new this.WrapperClass(element, this.endpoint);
+          instance.setAccessor(this.accessor);
+          instance.$collection = this;
+          this._new.push(instance);
+          this._byId[instance[this.id]] = instance;
+          return this.push(instance);
+        };
+
+        CollectionInstance.prototype.put = function(element) {
+          var j, len, old;
+          for (j = 0, len = this.length; j < len; j++) {
+            old = this[j];
+            if (old[this.id] === element[this.id]) {
+              old.update(element);
+              this._updated.push(old);
+              return;
+            }
+          }
+          return this.add(element);
+        };
+
+        CollectionInstance.prototype.clear = function() {
+          var results;
+          results = [];
+          while (this.length > 0) {
+            results.push(this.pop());
+          }
+          return results;
+        };
+
+        CollectionInstance.prototype["delete"] = function(element) {
+          var index;
+          index = this.indexOf(element);
+          if (index > -1) {
+            return this.splice(index, 1);
+          }
+        };
+
+        CollectionInstance.prototype.recomputeQuery = function() {
+          return this.queryExecutor.computeQuery(this);
+        };
+
+        CollectionInstance.prototype.sendEvents = function() {
+          var _new, _updated;
+          _new = this._new;
+          _updated = this._updated;
+          this._updated = [];
+          this._new = [];
+          return $timeout((function(_this) {
+            return function() {
+              var changed, i, j, k, len, len1;
+              changed = false;
+              for (j = 0, len = _new.length; j < len; j++) {
+                i = _new[j];
+                if (indexOf.call(_this, i) >= 0) {
+                  _this.onNew(i);
+                  changed = true;
+                }
+              }
+              for (k = 0, len1 = _updated.length; k < len1; k++) {
+                i = _updated[k];
+                if (indexOf.call(_this, i) >= 0) {
+                  _this.onUpdate(i);
+                  changed = true;
+                }
+              }
+              if (changed) {
+                return _this.onChange(_this);
+              }
+            };
+          })(this), 0);
+        };
+
+        return CollectionInstance;
+
+      })(Array);
+    }
+
+    return Collection;
+
+  })();
+
+  angular.module('bbData').factory('Collection', ['$q', '$injector', '$log', 'dataUtilsService', 'socketService', 'DataQuery', '$timeout', Collection]);
+
+}).call(this);
+
+(function() {
+  var DataQuery,
+    indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
+
+  DataQuery = (function() {
+    function DataQuery($http, $q, API) {
+      var DataQueryClass;
+      return DataQueryClass = (function() {
+        function DataQueryClass(query) {
+          var fieldAndOperator, value;
+          if (query == null) {
+            query = {};
+          }
+          this.query = query;
+          this.filters = {};
+          for (fieldAndOperator in query) {
+            value = query[fieldAndOperator];
+            if (['field', 'limit', 'offset', 'order'].indexOf(fieldAndOperator) < 0) {
+              if (['on', 'true', 'yes'].indexOf(value) > -1) {
+                value = true;
+              } else if (['off', 'false', 'no'].indexOf(value) > -1) {
+                value = false;
+              }
+              this.filters[fieldAndOperator] = value;
+            }
+          }
+        }
+
+        DataQueryClass.prototype.computeQuery = function(array) {
+          var limit, order, ref, ref1;
+          this.filter(array);
+          order = (ref = this.query) != null ? ref.order : void 0;
+          this.sort(array, order);
+          limit = (ref1 = this.query) != null ? ref1.limit : void 0;
+          return this.limit(array, limit);
+        };
+
+        DataQueryClass.prototype.isFiltered = function(v) {
+          var cmp, field, fieldAndOperator, operator, ref, ref1, value;
+          cmp = false;
+          ref = this.filters;
+          for (fieldAndOperator in ref) {
+            value = ref[fieldAndOperator];
+            ref1 = fieldAndOperator.split('__'), field = ref1[0], operator = ref1[1];
+            switch (operator) {
+              case 'ne':
+                cmp = v[field] !== value;
+                break;
+              case 'lt':
+                cmp = v[field] < value;
+                break;
+              case 'le':
+                cmp = v[field] <= value;
+                break;
+              case 'gt':
+                cmp = v[field] > value;
+                break;
+              case 'ge':
+                cmp = v[field] >= value;
+                break;
+              default:
+                cmp = v[field] === value || (angular.isArray(v[field]) && indexOf.call(v[field], value) >= 0) || v["_" + field] === value || (angular.isArray(v["_" + field]) && indexOf.call(v["_" + field], value) >= 0);
+            }
+            if (!cmp) {
+              return false;
+            }
+          }
+          return true;
+        };
+
+        DataQueryClass.prototype.filter = function(array) {
+          var i, results, v;
+          i = 0;
+          results = [];
+          while (i < array.length) {
+            v = array[i];
+            if (this.isFiltered(v)) {
+              results.push(i += 1);
+            } else {
+              results.push(array.splice(i, 1));
+            }
+          }
+          return results;
+        };
+
+        DataQueryClass.prototype.sort = function(array, order) {
+          var compare;
+          compare = function(property) {
+            var reverse;
+            reverse = false;
+            if (property[0] === '-') {
+              property = property.slice(1);
+              reverse = true;
+            }
+            return function(a, b) {
+              var ref;
+              if (reverse) {
+                ref = [b, a], a = ref[0], b = ref[1];
+              }
+              if (a[property] < b[property]) {
+                return -1;
+              } else if (a[property] > b[property]) {
+                return 1;
+              } else {
+                return 0;
+              }
+            };
+          };
+          if (angular.isString(order)) {
+            return array.sort(compare(order));
+          } else if (angular.isArray(order)) {
+            return array.sort(function(a, b) {
+              var f, j, len, o;
+              for (j = 0, len = order.length; j < len; j++) {
+                o = order[j];
+                f = compare(o)(a, b);
+                if (f) {
+                  return f;
+                }
+              }
+              return 0;
+            });
+          }
+        };
+
+        DataQueryClass.prototype.limit = function(array, limit) {
+          var results;
+          results = [];
+          while (array.length > limit) {
+            results.push(array.pop());
+          }
+          return results;
+        };
+
+        return DataQueryClass;
+
+      })();
+    }
+
+    return DataQuery;
+
+  })();
+
+  angular.module('bbData').factory('DataQuery', ['$http', '$q', 'API', DataQuery]);
 
 }).call(this);
 
