@@ -28,7 +28,7 @@
 
   Endpoints = (function() {
     function Endpoints() {
-      return ['builders', 'builds', 'buildrequests', 'buildslaves', 'buildsets', 'changes', 'changesources', 'masters', 'sourcestamps', 'schedulers', 'forceschedulers'];
+      return ['builders', 'builds', 'buildrequests', 'workers', 'buildsets', 'changes', 'changesources', 'masters', 'sourcestamps', 'schedulers', 'forceschedulers'];
     }
 
     return Endpoints;
@@ -166,7 +166,7 @@
 
         function BuilderInstance(object, endpoint) {
           var endpoints;
-          endpoints = ['builds', 'buildrequests', 'forceschedulers', 'buildslaves', 'masters'];
+          endpoints = ['builds', 'buildrequests', 'forceschedulers', 'workers', 'masters'];
           BuilderInstance.__super__.constructor.call(this, object, endpoint, endpoints);
         }
 
@@ -240,34 +240,6 @@
   })();
 
   angular.module('bbData').factory('Buildset', ['Base', 'dataService', Buildset]);
-
-}).call(this);
-
-(function() {
-  var Buildslave,
-    extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
-    hasProp = {}.hasOwnProperty;
-
-  Buildslave = (function() {
-    function Buildslave(Base, dataService) {
-      var BuildslaveInstance;
-      return BuildslaveInstance = (function(superClass) {
-        extend(BuildslaveInstance, superClass);
-
-        function BuildslaveInstance(object, endpoint) {
-          BuildslaveInstance.__super__.constructor.call(this, object, endpoint);
-        }
-
-        return BuildslaveInstance;
-
-      })(Base);
-    }
-
-    return Buildslave;
-
-  })();
-
-  angular.module('bbData').factory('Buildslave', ['Base', 'dataService', Buildslave]);
 
 }).call(this);
 
@@ -415,7 +387,7 @@
 
         function MasterInstance(object, endpoint) {
           var endpoints;
-          endpoints = ['builders', 'buildslaves', 'changesources', 'schedulers'];
+          endpoints = ['builders', 'workers', 'changesources', 'schedulers'];
           MasterInstance.__super__.constructor.call(this, object, endpoint, endpoints);
         }
 
@@ -545,6 +517,34 @@
   })();
 
   angular.module('bbData').factory('Step', ['Base', 'dataService', Step]);
+
+}).call(this);
+
+(function() {
+  var Worker,
+    extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
+    hasProp = {}.hasOwnProperty;
+
+  Worker = (function() {
+    function Worker(Base, dataService) {
+      var WorkerInstance;
+      return WorkerInstance = (function(superClass) {
+        extend(WorkerInstance, superClass);
+
+        function WorkerInstance(object, endpoint) {
+          WorkerInstance.__super__.constructor.call(this, object, endpoint);
+        }
+
+        return WorkerInstance;
+
+      })(Base);
+    }
+
+    return Worker;
+
+  })();
+
+  angular.module('bbData').factory('Worker', ['Base', 'dataService', Worker]);
 
 }).call(this);
 
