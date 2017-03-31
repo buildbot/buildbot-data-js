@@ -1,3 +1,4 @@
+BOWERDEPS = (typeof BOWERDEPS === 'undefined') ? {}: BOWERDEPS;
 (function() {
   var App;
 
@@ -910,7 +911,7 @@
         };
 
         dataUtilsService.prototype.parse = function(object) {
-          var error, error1, k, v;
+          var error, k, v;
           for (k in object) {
             v = object[k];
             try {
@@ -939,7 +940,7 @@
         };
 
         dataUtilsService.prototype.emailInString = function(string) {
-          var emailRegex, error1;
+          var emailRegex;
           if (!angular.isString(string)) {
             throw new TypeError("Parameter 'string' must be a string, not " + (typeof string));
           }
@@ -977,7 +978,7 @@
         RestService.prototype.execute = function(config) {
           return $q(function(resolve, reject) {
             return $http(config).success(function(response) {
-              var data, e, error;
+              var data, e;
               try {
                 data = angular.fromJson(response);
                 return resolve(data);
@@ -1076,7 +1077,7 @@
           }
           return this.socket.onmessage = (function(_this) {
             return function(message) {
-              var data, e, error, id, ref, ref1, ref2;
+              var data, e, id, ref, ref1, ref2;
               try {
                 data = angular.fromJson(message.data);
                 if (data.code != null) {
@@ -1378,7 +1379,7 @@
         extend(CollectionInstance, superClass);
 
         function CollectionInstance(restPath, query, accessor) {
-          var className, e, error, ref;
+          var className, e, ref;
           this.restPath = restPath;
           this.query = query != null ? query : {};
           this.accessor = accessor;
@@ -1486,9 +1487,10 @@
         };
 
         CollectionInstance.prototype.put = function(element) {
-          var j, len, old;
-          for (j = 0, len = this.length; j < len; j++) {
-            old = this[j];
+          var j, len, old, ref;
+          ref = this;
+          for (j = 0, len = ref.length; j < len; j++) {
+            old = ref[j];
             if (old[this.id] === element[this.id]) {
               old.update(element);
               this._updated.push(old);
@@ -1580,7 +1582,7 @@
           this.filters = {};
           for (fieldAndOperator in query) {
             value = query[fieldAndOperator];
-            if (['field', 'limit', 'offset', 'order'].indexOf(fieldAndOperator) < 0) {
+            if (['field', 'limit', 'offset', 'order', 'property'].indexOf(fieldAndOperator) < 0) {
               if (['on', 'true', 'yes'].indexOf(value) > -1) {
                 value = true;
               } else if (['off', 'false', 'no'].indexOf(value) > -1) {
