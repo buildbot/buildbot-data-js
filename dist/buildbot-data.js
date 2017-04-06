@@ -1396,6 +1396,7 @@ BOWERDEPS = (typeof BOWERDEPS === 'undefined') ? {}: BOWERDEPS;
           this._new = [];
           this._updated = [];
           this._byId = {};
+          this.$resolved = false;
           try {
             className = dataUtilsService.className(this.restPath);
             this.WrapperClass = $injector.get(className);
@@ -1449,6 +1450,7 @@ BOWERDEPS = (typeof BOWERDEPS === 'undefined') ? {}: BOWERDEPS;
 
         CollectionInstance.prototype.initial = function(data) {
           var i, j, len;
+          this.$resolved = true;
           for (j = 0, len = data.length; j < len; j++) {
             i = data[j];
             if (!this.hasOwnProperty(i[this.id])) {
@@ -1456,7 +1458,9 @@ BOWERDEPS = (typeof BOWERDEPS === 'undefined') ? {}: BOWERDEPS;
             }
           }
           this.recomputeQuery();
-          return this.sendEvents();
+          return this.sendEvents({
+            initial: true
+          });
         };
 
         CollectionInstance.prototype.from = function(data) {
@@ -1521,7 +1525,7 @@ BOWERDEPS = (typeof BOWERDEPS === 'undefined') ? {}: BOWERDEPS;
           return this.queryExecutor.computeQuery(this);
         };
 
-        CollectionInstance.prototype.sendEvents = function() {
+        CollectionInstance.prototype.sendEvents = function(opts) {
           var _new, _updated;
           _new = this._new;
           _updated = this._updated;
@@ -1545,7 +1549,7 @@ BOWERDEPS = (typeof BOWERDEPS === 'undefined') ? {}: BOWERDEPS;
                   changed = true;
                 }
               }
-              if (changed) {
+              if (changed || (opts != null ? opts.initial : void 0)) {
                 return _this.onChange(_this);
               }
             };
