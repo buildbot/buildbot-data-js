@@ -911,7 +911,7 @@ BOWERDEPS = (typeof BOWERDEPS === 'undefined') ? {}: BOWERDEPS;
         };
 
         dataUtilsService.prototype.parse = function(object) {
-          var error, k, v;
+          var error, error1, k, v;
           for (k in object) {
             v = object[k];
             try {
@@ -940,7 +940,7 @@ BOWERDEPS = (typeof BOWERDEPS === 'undefined') ? {}: BOWERDEPS;
         };
 
         dataUtilsService.prototype.emailInString = function(string) {
-          var emailRegex;
+          var emailRegex, error1;
           if (!angular.isString(string)) {
             throw new TypeError("Parameter 'string' must be a string, not " + (typeof string));
           }
@@ -978,7 +978,7 @@ BOWERDEPS = (typeof BOWERDEPS === 'undefined') ? {}: BOWERDEPS;
         RestService.prototype.execute = function(config) {
           return $q(function(resolve, reject) {
             return $http(config).success(function(response) {
-              var data, e;
+              var data, e, error;
               try {
                 data = angular.fromJson(response);
                 return resolve(data);
@@ -993,35 +993,43 @@ BOWERDEPS = (typeof BOWERDEPS === 'undefined') ? {}: BOWERDEPS;
         };
 
         RestService.prototype.get = function(url, params) {
-          var config;
+          var canceller, config, promise;
           if (params == null) {
             params = {};
           }
+          canceller = $q.defer();
           config = {
             method: 'GET',
             url: this.parse(API, url),
             params: params,
             headers: {
               'Accept': 'application/json'
-            }
+            },
+            timeout: canceller.promise
           };
-          return this.execute(config);
+          promise = this.execute(config);
+          promise.cancel = canceller.resolve;
+          return promise;
         };
 
         RestService.prototype.post = function(url, data) {
-          var config;
+          var canceller, config, promise;
           if (data == null) {
             data = {};
           }
+          canceller = $q.defer();
           config = {
             method: 'POST',
             url: this.parse(API, url),
             data: data,
             headers: {
               'Content-Type': 'application/json'
-            }
+            },
+            timeout: canceller.promise
           };
-          return this.execute(config);
+          promise = this.execute(config);
+          promise.cancel = canceller.resolve;
+          return promise;
         };
 
         RestService.prototype.parse = function() {
@@ -1077,7 +1085,7 @@ BOWERDEPS = (typeof BOWERDEPS === 'undefined') ? {}: BOWERDEPS;
           }
           return this.socket.onmessage = (function(_this) {
             return function(message) {
-              var data, e, id, ref, ref1, ref2;
+              var data, e, error, id, ref, ref1, ref2;
               try {
                 data = angular.fromJson(message.data);
                 if (data.code != null) {
@@ -1379,7 +1387,7 @@ BOWERDEPS = (typeof BOWERDEPS === 'undefined') ? {}: BOWERDEPS;
         extend(CollectionInstance, superClass);
 
         function CollectionInstance(restPath, query, accessor) {
-          var className, e, ref;
+          var className, e, error, ref;
           this.restPath = restPath;
           this.query = query != null ? query : {};
           this.accessor = accessor;
@@ -1491,10 +1499,9 @@ BOWERDEPS = (typeof BOWERDEPS === 'undefined') ? {}: BOWERDEPS;
         };
 
         CollectionInstance.prototype.put = function(element) {
-          var j, len, old, ref;
-          ref = this;
-          for (j = 0, len = ref.length; j < len; j++) {
-            old = ref[j];
+          var j, len, old;
+          for (j = 0, len = this.length; j < len; j++) {
+            old = this[j];
             if (old[this.id] === element[this.id]) {
               old.update(element);
               this._updated.push(old);

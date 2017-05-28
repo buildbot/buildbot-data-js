@@ -48480,9 +48480,9 @@ angular.mock.$RootScopeDecorator = ['$delegate', function($delegate) {
         result = dataUtilsService.socketPathRE('asd/1/*');
         expect(result.test("asd/1/new")).toBeTruthy();
         result = dataUtilsService.socketPathRE('asd/1/bnm/*/*').source;
-        expect(result).toBe('^asd\\/1\\/bnm\\/[^/]+\\/[^/]+$');
+        expect(result).toBe('^asd\\/1\\/bnm\\/[^\\/]+\\/[^\\/]+$');
         result = dataUtilsService.socketPathRE('asd/1/*').source;
-        return expect(result).toBe('^asd\\/1\\/[^/]+$');
+        return expect(result).toBe('^asd\\/1\\/[^\\/]+$');
       });
     });
     describe('restPath(arg)', function() {
@@ -48651,7 +48651,7 @@ angular.mock.$RootScopeDecorator = ['$delegate', function($delegate) {
       $httpBackend.flush();
       return expect(gotResponse).toEqual(response);
     });
-    return it('should reject the promise when the response is not valid JSON', function() {
+    it('should reject the promise when the response is not valid JSON', function() {
       var data, gotResponse, response;
       response = 'aaa';
       data = {
@@ -48668,6 +48668,22 @@ angular.mock.$RootScopeDecorator = ['$delegate', function($delegate) {
       expect(gotResponse).not.toBeNull();
       return expect(gotResponse).not.toEqual(response);
     });
+    return it('should reject the promise when cancelled', inject(function($rootScope) {
+      var gotResponse, rejected, request;
+      $httpBackend.expectGET('/api/endpoint').respond({});
+      gotResponse = null;
+      rejected = false;
+      request = restService.get('endpoint');
+      request.then(function(response) {
+        return gotResponse = response;
+      }, function(reason) {
+        return rejected = true;
+      });
+      request.cancel();
+      $rootScope.$apply();
+      expect(gotResponse).toBeNull();
+      return expect(rejected).toBe(true);
+    }));
   });
 
 }).call(this);
