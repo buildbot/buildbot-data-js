@@ -977,17 +977,17 @@ BOWERDEPS = (typeof BOWERDEPS === 'undefined') ? {}: BOWERDEPS;
 
         RestService.prototype.execute = function(config) {
           return $q(function(resolve, reject) {
-            return $http(config).success(function(response) {
+            return $http(config).then(function(response) {
               var data, e, error;
               try {
-                data = angular.fromJson(response);
+                data = angular.fromJson(response.data);
                 return resolve(data);
               } catch (error) {
                 e = error;
                 return reject(e);
               }
-            }).error(function(reason) {
-              return reject(reason);
+            }, function(response) {
+              return reject(response.data);
             });
           });
         };
