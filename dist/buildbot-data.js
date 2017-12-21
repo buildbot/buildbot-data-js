@@ -911,7 +911,7 @@ BOWERDEPS = (typeof BOWERDEPS === 'undefined') ? {}: BOWERDEPS;
         };
 
         dataUtilsService.prototype.parse = function(object) {
-          var error, error1, k, v;
+          var error, k, v;
           for (k in object) {
             v = object[k];
             try {
@@ -940,7 +940,7 @@ BOWERDEPS = (typeof BOWERDEPS === 'undefined') ? {}: BOWERDEPS;
         };
 
         dataUtilsService.prototype.emailInString = function(string) {
-          var emailRegex, error1;
+          var emailRegex;
           if (!angular.isString(string)) {
             throw new TypeError("Parameter 'string' must be a string, not " + (typeof string));
           }
@@ -977,17 +977,17 @@ BOWERDEPS = (typeof BOWERDEPS === 'undefined') ? {}: BOWERDEPS;
 
         RestService.prototype.execute = function(config) {
           return $q(function(resolve, reject) {
-            return $http(config).then(function(response) {
-              var data, e, error;
+            return $http(config).success(function(response) {
+              var data, e;
               try {
-                data = angular.fromJson(response.data);
+                data = angular.fromJson(response);
                 return resolve(data);
               } catch (error) {
                 e = error;
                 return reject(e);
               }
-            }, function(response) {
-              return reject(response.data);
+            }).error(function(reason) {
+              return reject(reason);
             });
           });
         };
@@ -1085,7 +1085,7 @@ BOWERDEPS = (typeof BOWERDEPS === 'undefined') ? {}: BOWERDEPS;
           }
           return this.socket.onmessage = (function(_this) {
             return function(message) {
-              var data, e, error, id, ref, ref1, ref2;
+              var data, e, id, ref, ref1, ref2;
               try {
                 data = angular.fromJson(message.data);
                 if (data.code != null) {
@@ -1387,7 +1387,7 @@ BOWERDEPS = (typeof BOWERDEPS === 'undefined') ? {}: BOWERDEPS;
         extend(CollectionInstance, superClass);
 
         function CollectionInstance(restPath, query, accessor) {
-          var className, e, error, ref;
+          var className, e, ref;
           this.restPath = restPath;
           this.query = query != null ? query : {};
           this.accessor = accessor;
@@ -1499,9 +1499,10 @@ BOWERDEPS = (typeof BOWERDEPS === 'undefined') ? {}: BOWERDEPS;
         };
 
         CollectionInstance.prototype.put = function(element) {
-          var j, len, old;
-          for (j = 0, len = this.length; j < len; j++) {
-            old = this[j];
+          var j, len, old, ref;
+          ref = this;
+          for (j = 0, len = ref.length; j < len; j++) {
+            old = ref[j];
             if (old[this.id] === element[this.id]) {
               old.update(element);
               this._updated.push(old);
@@ -1578,7 +1579,8 @@ BOWERDEPS = (typeof BOWERDEPS === 'undefined') ? {}: BOWERDEPS;
 
 (function() {
   var DataQuery,
-    indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
+    indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; },
+    hasProp = {}.hasOwnProperty;
 
   DataQuery = (function() {
     function DataQuery($http, $q, API) {
@@ -1614,12 +1616,13 @@ BOWERDEPS = (typeof BOWERDEPS === 'undefined') ? {}: BOWERDEPS;
         };
 
         DataQueryClass.prototype.isFiltered = function(v) {
-          var cmp, field, fieldAndOperator, operator, ref, ref1, value;
-          cmp = false;
+          var cmp, cmpByOp, field, fieldAndOperator, op, operator, ref, ref1, ref2, ref3, value;
+          cmpByOp = {};
           ref = this.filters;
           for (fieldAndOperator in ref) {
             value = ref[fieldAndOperator];
             ref1 = fieldAndOperator.split('__'), field = ref1[0], operator = ref1[1];
+            cmp = false;
             switch (operator) {
               case 'ne':
                 cmp = v[field] !== value;
@@ -1637,9 +1640,14 @@ BOWERDEPS = (typeof BOWERDEPS === 'undefined') ? {}: BOWERDEPS;
                 cmp = v[field] >= value;
                 break;
               default:
-                cmp = v[field] === value || (angular.isArray(v[field]) && indexOf.call(v[field], value) >= 0) || v["_" + field] === value || (angular.isArray(v["_" + field]) && indexOf.call(v["_" + field], value) >= 0);
+                cmp = v[field] === value || (angular.isArray(v[field]) && indexOf.call(v[field], value) >= 0) || (angular.isArray(value) && value.length === 0) || (angular.isArray(value) && (ref2 = v[field], indexOf.call(value, ref2) >= 0)) || v["_" + field] === value || (angular.isArray(v["_" + field]) && indexOf.call(v["_" + field], value) >= 0) || (angular.isArray(value) && (ref3 = v["_" + field], indexOf.call(value, ref3) >= 0));
             }
-            if (!cmp) {
+            cmpByOp[fieldAndOperator] = cmpByOp[fieldAndOperator] || cmp;
+          }
+          for (op in cmpByOp) {
+            if (!hasProp.call(cmpByOp, op)) continue;
+            v = cmpByOp[op];
+            if (!v) {
               return false;
             }
           }
