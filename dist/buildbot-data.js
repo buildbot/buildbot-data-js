@@ -550,6 +550,171 @@ BOWERDEPS = (typeof BOWERDEPS === 'undefined') ? {}: BOWERDEPS;
 }).call(this);
 
 (function() {
+  var DataUtils;
+
+  DataUtils = (function() {
+    function DataUtils() {
+      var dataUtilsService;
+      return new (dataUtilsService = (function() {
+        function dataUtilsService() {}
+
+        dataUtilsService.prototype.capitalize = function(string) {
+          return string[0].toUpperCase() + string.slice(1).toLowerCase();
+        };
+
+        dataUtilsService.prototype.type = function(arg) {
+          var a, type;
+          a = this.copyOrSplit(arg);
+          a = a.filter(function(e) {
+            return e !== '*';
+          });
+          if (a.length % 2 === 0) {
+            a.pop();
+          }
+          type = a.pop();
+          if (type === "contents") {
+            type = "logchunks";
+          }
+          return type;
+        };
+
+        dataUtilsService.prototype.singularType = function(arg) {
+          return this.type(arg).replace(/s$/, '');
+        };
+
+        dataUtilsService.prototype.className = function(arg) {
+          return this.capitalize(this.singularType(arg));
+        };
+
+        dataUtilsService.prototype.classId = function(arg) {
+          if (this.singularType(arg) === "forcescheduler") {
+            return "name";
+          }
+          if (this.singularType(arg) === "buildset") {
+            return "bsid";
+          }
+          return this.singularType(arg) + "id";
+        };
+
+        dataUtilsService.prototype.socketPath = function(arg) {
+          var a, stars;
+          a = this.copyOrSplit(arg);
+          stars = ['*'];
+          if (a.length % 2 === 1 && !arg.endsWith("/properties")) {
+            stars.push('*');
+          }
+          return a.concat(stars).join('/');
+        };
+
+        dataUtilsService.prototype.socketPathRE = function(socketPath) {
+          return new RegExp("^" + socketPath.replace(/\*/g, "[^/]+") + "$");
+        };
+
+        dataUtilsService.prototype.restPath = function(arg) {
+          var a;
+          a = this.copyOrSplit(arg);
+          a = a.filter(function(e) {
+            return e !== '*';
+          });
+          return a.join('/');
+        };
+
+        dataUtilsService.prototype.endpointPath = function(arg) {
+          var a;
+          a = this.copyOrSplit(arg);
+          a = a.filter(function(e) {
+            return e !== '*';
+          });
+          if (a.length % 2 === 0) {
+            a.pop();
+          }
+          return a.join('/');
+        };
+
+        dataUtilsService.prototype.copyOrSplit = function(arrayOrString) {
+          if (angular.isArray(arrayOrString)) {
+            return arrayOrString.slice(0);
+          } else if (angular.isString(arrayOrString)) {
+            return arrayOrString.split('/');
+          } else {
+            throw new TypeError("Parameter 'arrayOrString' must be a array or a string, not " + (typeof arrayOrString));
+          }
+        };
+
+        dataUtilsService.prototype.unWrap = function(object, path) {
+          return object[this.type(path)];
+        };
+
+        dataUtilsService.prototype.splitOptions = function(args) {
+          var accessor, last, query, subscribe;
+          args = args.filter(function(e) {
+            return e != null;
+          });
+          query = {};
+          last = args[args.length - 1];
+          subscribe = accessor = null;
+          if (angular.isObject(last)) {
+            query = args.pop();
+          }
+          return [args, query];
+        };
+
+        dataUtilsService.prototype.parse = function(object) {
+          var error, error1, k, v;
+          for (k in object) {
+            v = object[k];
+            try {
+              object[k] = angular.fromJson(v);
+            } catch (error1) {
+              error = error1;
+            }
+          }
+          return object;
+        };
+
+        dataUtilsService.prototype.numberOrString = function(str) {
+          var number;
+          if (str == null) {
+            str = null;
+          }
+          if (angular.isNumber(str)) {
+            return str;
+          }
+          number = parseInt(str, 10);
+          if (!isNaN(number)) {
+            return number;
+          } else {
+            return str;
+          }
+        };
+
+        dataUtilsService.prototype.emailInString = function(string) {
+          var emailRegex, error1;
+          if (!angular.isString(string)) {
+            throw new TypeError("Parameter 'string' must be a string, not " + (typeof string));
+          }
+          emailRegex = /[a-zA-Z0-9.!#$%&'*+\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*/;
+          try {
+            return emailRegex.exec(string).pop() || '';
+          } catch (error1) {
+            return '';
+          }
+        };
+
+        return dataUtilsService;
+
+      })());
+    }
+
+    return DataUtils;
+
+  })();
+
+  angular.module('bbData').service('dataUtilsService', [DataUtils]);
+
+}).call(this);
+
+(function() {
   var Data,
     slice = [].slice;
 
@@ -801,257 +966,6 @@ BOWERDEPS = (typeof BOWERDEPS === 'undefined') ? {}: BOWERDEPS;
 }).call(this);
 
 (function() {
-  var DataUtils;
-
-  DataUtils = (function() {
-    function DataUtils() {
-      var dataUtilsService;
-      return new (dataUtilsService = (function() {
-        function dataUtilsService() {}
-
-        dataUtilsService.prototype.capitalize = function(string) {
-          return string[0].toUpperCase() + string.slice(1).toLowerCase();
-        };
-
-        dataUtilsService.prototype.type = function(arg) {
-          var a, type;
-          a = this.copyOrSplit(arg);
-          a = a.filter(function(e) {
-            return e !== '*';
-          });
-          if (a.length % 2 === 0) {
-            a.pop();
-          }
-          type = a.pop();
-          if (type === "contents") {
-            type = "logchunks";
-          }
-          return type;
-        };
-
-        dataUtilsService.prototype.singularType = function(arg) {
-          return this.type(arg).replace(/s$/, '');
-        };
-
-        dataUtilsService.prototype.className = function(arg) {
-          return this.capitalize(this.singularType(arg));
-        };
-
-        dataUtilsService.prototype.classId = function(arg) {
-          if (this.singularType(arg) === "forcescheduler") {
-            return "name";
-          }
-          if (this.singularType(arg) === "buildset") {
-            return "bsid";
-          }
-          return this.singularType(arg) + "id";
-        };
-
-        dataUtilsService.prototype.socketPath = function(arg) {
-          var a, stars;
-          a = this.copyOrSplit(arg);
-          stars = ['*'];
-          if (a.length % 2 === 1) {
-            stars.push('*');
-          }
-          return a.concat(stars).join('/');
-        };
-
-        dataUtilsService.prototype.socketPathRE = function(socketPath) {
-          return new RegExp("^" + socketPath.replace(/\*/g, "[^/]+") + "$");
-        };
-
-        dataUtilsService.prototype.restPath = function(arg) {
-          var a;
-          a = this.copyOrSplit(arg);
-          a = a.filter(function(e) {
-            return e !== '*';
-          });
-          return a.join('/');
-        };
-
-        dataUtilsService.prototype.endpointPath = function(arg) {
-          var a;
-          a = this.copyOrSplit(arg);
-          a = a.filter(function(e) {
-            return e !== '*';
-          });
-          if (a.length % 2 === 0) {
-            a.pop();
-          }
-          return a.join('/');
-        };
-
-        dataUtilsService.prototype.copyOrSplit = function(arrayOrString) {
-          if (angular.isArray(arrayOrString)) {
-            return arrayOrString.slice(0);
-          } else if (angular.isString(arrayOrString)) {
-            return arrayOrString.split('/');
-          } else {
-            throw new TypeError("Parameter 'arrayOrString' must be a array or a string, not " + (typeof arrayOrString));
-          }
-        };
-
-        dataUtilsService.prototype.unWrap = function(object, path) {
-          return object[this.type(path)];
-        };
-
-        dataUtilsService.prototype.splitOptions = function(args) {
-          var accessor, last, query, subscribe;
-          args = args.filter(function(e) {
-            return e != null;
-          });
-          query = {};
-          last = args[args.length - 1];
-          subscribe = accessor = null;
-          if (angular.isObject(last)) {
-            query = args.pop();
-          }
-          return [args, query];
-        };
-
-        dataUtilsService.prototype.parse = function(object) {
-          var error, error1, k, v;
-          for (k in object) {
-            v = object[k];
-            try {
-              object[k] = angular.fromJson(v);
-            } catch (error1) {
-              error = error1;
-            }
-          }
-          return object;
-        };
-
-        dataUtilsService.prototype.numberOrString = function(str) {
-          var number;
-          if (str == null) {
-            str = null;
-          }
-          if (angular.isNumber(str)) {
-            return str;
-          }
-          number = parseInt(str, 10);
-          if (!isNaN(number)) {
-            return number;
-          } else {
-            return str;
-          }
-        };
-
-        dataUtilsService.prototype.emailInString = function(string) {
-          var emailRegex, error1;
-          if (!angular.isString(string)) {
-            throw new TypeError("Parameter 'string' must be a string, not " + (typeof string));
-          }
-          emailRegex = /[a-zA-Z0-9.!#$%&'*+\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*/;
-          try {
-            return emailRegex.exec(string).pop() || '';
-          } catch (error1) {
-            return '';
-          }
-        };
-
-        return dataUtilsService;
-
-      })());
-    }
-
-    return DataUtils;
-
-  })();
-
-  angular.module('bbData').service('dataUtilsService', [DataUtils]);
-
-}).call(this);
-
-(function() {
-  var Rest,
-    slice = [].slice;
-
-  Rest = (function() {
-    function Rest($http, $q, API) {
-      var RestService;
-      return new (RestService = (function() {
-        function RestService() {}
-
-        RestService.prototype.execute = function(config) {
-          return $q(function(resolve, reject) {
-            return $http(config).success(function(response) {
-              var data, e, error;
-              try {
-                data = angular.fromJson(response);
-                return resolve(data);
-              } catch (error) {
-                e = error;
-                return reject(e);
-              }
-            }).error(function(reason) {
-              return reject(reason);
-            });
-          });
-        };
-
-        RestService.prototype.get = function(url, params) {
-          var canceller, config, promise;
-          if (params == null) {
-            params = {};
-          }
-          canceller = $q.defer();
-          config = {
-            method: 'GET',
-            url: this.parse(API, url),
-            params: params,
-            headers: {
-              'Accept': 'application/json'
-            },
-            timeout: canceller.promise
-          };
-          promise = this.execute(config);
-          promise.cancel = canceller.resolve;
-          return promise;
-        };
-
-        RestService.prototype.post = function(url, data) {
-          var canceller, config, promise;
-          if (data == null) {
-            data = {};
-          }
-          canceller = $q.defer();
-          config = {
-            method: 'POST',
-            url: this.parse(API, url),
-            data: data,
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            timeout: canceller.promise
-          };
-          promise = this.execute(config);
-          promise.cancel = canceller.resolve;
-          return promise;
-        };
-
-        RestService.prototype.parse = function() {
-          var args;
-          args = 1 <= arguments.length ? slice.call(arguments, 0) : [];
-          return args.join('/').replace(/\/\//, '/');
-        };
-
-        return RestService;
-
-      })());
-    }
-
-    return Rest;
-
-  })();
-
-  angular.module('bbData').service('restService', ['$http', '$q', 'API', Rest]);
-
-}).call(this);
-
-(function() {
   var Socket;
 
   Socket = (function() {
@@ -1296,6 +1210,92 @@ BOWERDEPS = (typeof BOWERDEPS === 'undefined') ? {}: BOWERDEPS;
   })();
 
   angular.module('bbData').service('webSocketService', ['$window', WebSocket]);
+
+}).call(this);
+
+(function() {
+  var Rest,
+    slice = [].slice;
+
+  Rest = (function() {
+    function Rest($http, $q, API) {
+      var RestService;
+      return new (RestService = (function() {
+        function RestService() {}
+
+        RestService.prototype.execute = function(config) {
+          return $q(function(resolve, reject) {
+            return $http(config).success(function(response) {
+              var data, e, error;
+              try {
+                data = angular.fromJson(response);
+                return resolve(data);
+              } catch (error) {
+                e = error;
+                return reject(e);
+              }
+            }).error(function(reason) {
+              return reject(reason);
+            });
+          });
+        };
+
+        RestService.prototype.get = function(url, params) {
+          var canceller, config, promise;
+          if (params == null) {
+            params = {};
+          }
+          canceller = $q.defer();
+          config = {
+            method: 'GET',
+            url: this.parse(API, url),
+            params: params,
+            headers: {
+              'Accept': 'application/json'
+            },
+            timeout: canceller.promise
+          };
+          promise = this.execute(config);
+          promise.cancel = canceller.resolve;
+          return promise;
+        };
+
+        RestService.prototype.post = function(url, data) {
+          var canceller, config, promise;
+          if (data == null) {
+            data = {};
+          }
+          canceller = $q.defer();
+          config = {
+            method: 'POST',
+            url: this.parse(API, url),
+            data: data,
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            timeout: canceller.promise
+          };
+          promise = this.execute(config);
+          promise.cancel = canceller.resolve;
+          return promise;
+        };
+
+        RestService.prototype.parse = function() {
+          var args;
+          args = 1 <= arguments.length ? slice.call(arguments, 0) : [];
+          return args.join('/').replace(/\/\//, '/');
+        };
+
+        return RestService;
+
+      })());
+    }
+
+    return Rest;
+
+  })();
+
+  angular.module('bbData').service('restService', ['$http', '$q', 'API', Rest]);
 
 }).call(this);
 
